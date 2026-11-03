@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Prueba del iPad · Naidí</title>
+<style>
+  body{margin:0; background:#FFF7EC; color:#3B2561; font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif; font-size:15px; line-height:1.4;}
+  .wrap{max-width:760px; margin:0 auto; padding:14px 16px 40px;}
+  h1{font-size:26px; margin:6px 0 6px;}
+  h2{font-size:18px; margin:26px 0 6px; padding-top:10px; border-top:2px solid #59358C;}
+  .lead{margin:0 0 12px; color:#6B5A78;}
+  .summary{background:#FFFFFF; border:1px solid #EEE1CF; border-radius:12px; padding:12px 14px; font-weight:700; margin-bottom:12px;}
+  .btns{margin-bottom:6px;}
+  button{font:inherit; font-weight:700; padding:12px 16px; border:none; border-radius:12px; background:#95C23D; color:#2A1245; margin:0 8px 8px 0;}
+  button.alt{background:#FFFFFF; border:1.5px solid #59358C; color:#59358C;}
+  button.small{padding:7px 12px; font-size:13px; margin:4px 6px 0 0;}
+  ul.rows{list-style:none; margin:0; padding:0;}
+  ul.rows li{display:flex; justify-content:space-between; align-items:flex-start; padding:8px 0; border-bottom:1px solid #EEE1CF;}
+  .left{flex:1 1 auto; padding-right:12px; min-width:0;}
+  .name{font-weight:700;}
+  .det{color:#6B5A78; font-size:13px; word-break:break-word;}
+  .res{flex:none; min-width:64px; text-align:center; font-weight:800; border-radius:999px; padding:3px 10px; font-size:13px;}
+  .res.ok{background:#DDEFC0; color:#2E4A0A;}
+  .res.bad{background:#FBD3DC; color:#8A1237;}
+  .res.info{background:#EFE6F7; color:#59358C;}
+  .field{margin:8px 0;}
+  .field label{display:block; font-weight:700; font-size:13px; margin-bottom:3px;}
+  .field input,.field select{width:100%; box-sizing:border-box; font:inherit; padding:10px; border:1.5px solid #D9C9E8; border-radius:10px; background:#fff; color:#3B2561;}
+  .note{font-size:13px; color:#6B5A78; margin:6px 0;}
+  textarea{width:100%; box-sizing:border-box; font-family:Menlo,monospace; font-size:12px; padding:10px; border:1.5px solid #D9C9E8; border-radius:10px; background:#fff; color:#3B2561;}
+  .shapes{display:flex; flex-wrap:wrap; margin-top:8px;}
+  .shape{width:150px; margin:0 14px 14px 0;}
+  .shape p{margin:6px 0 0; font-size:12px; color:#6B5A78;}
+  .blob{width:120px; height:120px; position:relative; border-radius:63% 37% 54% 46% / 43% 51% 49% 57%;}
+  .blob img{width:100%; height:100%; display:block;}
+  .blobA{overflow:hidden; -webkit-transition:border-radius .5s ease; transition:border-radius .5s ease;}
+  .blobA::after,.blobC::after{content:""; position:absolute; top:0; right:0; bottom:0; left:0; background:radial-gradient(circle at 26% 22%, rgba(255,255,255,.55), transparent 60%);}
+  .blobA.alt,.blobC.alt{border-radius:48% 52% 41% 59% / 55% 44% 56% 45%;}
+  .blobB img{border-radius:63% 37% 54% 46% / 43% 51% 49% 57%;}
+  .blobC{overflow:hidden; -webkit-mask-image:-webkit-radial-gradient(white,black); -webkit-transition:border-radius .5s ease; transition:border-radius .5s ease;}
+  .emoji{font-size:28px; letter-spacing:6px;}
+  .hide{position:absolute; top:0; left:0; width:60px; height:60px; overflow:hidden; opacity:.01; pointer-events:none;}
+  .hide img{width:60px; height:60px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Prueba del iPad</h1>
+  <p class="lead">Las pruebas básicas corren solas. Las de imágenes, Supabase y memoria se lanzan con los botones. Al terminar, toca “Seleccionar resultado”, copia el texto y pégalo en el chat (o toma capturas).</p>
+  <div class="summary" id="summary">Ejecutando pruebas…</div>
+
+  <div class="btns">
+    <button id="bImg" type="button">Probar imágenes del sitio</button>
+    <button id="bImg1" type="button" class="alt">Imágenes de a una</button>
+    <button id="bNet" type="button">Probar Supabase</button>
+    <button id="bMem" type="button" class="alt">Prueba de memoria</button>
+    <button id="bSel" type="button" class="alt">Seleccionar resultado</button>
+  </div>
+
+  <h2>Dispositivo</h2>
+  <ul class="rows" id="r-dev"></ul>
+
+  <h2>CSS (se mide con elementos reales)</h2>
+  <ul class="rows" id="r-css"></ul>
+
+  <h2>JavaScript y APIs</h2>
+  <ul class="rows" id="r-js"></ul>
+
+  <h2>Formatos y emojis</h2>
+  <ul class="rows" id="r-fmt"></ul>
+  <div id="emojis" class="emoji"></div>
+
+  <h2>Esquinas redondeadas</h2>
+  <p class="note">Toca cada forma: la animación del radio es donde suele fallar el recorte. Luego responde qué ves. Un cuadrado visible en las esquinas cuenta como “cuadrado”.</p>
+  <div class="shapes" id="shapes"></div>
+  <ul class="rows" id="r-shape"></ul>
+
+  <h2>Imágenes del sitio</h2>
+  <p class="note">Solo funciona si esta página está en el mismo dominio que el sitio (por ejemplo naidi.fit/prueba-ipad.html), junto a la carpeta <b>images</b>. Carga todas las imágenes que Safari 12 pide hoy porque no soporta WebP.</p>
+  <ul class="rows" id="r-img"></ul>
+
+  <h2>Supabase (red y tiempo real)</h2>
+  <div class="field"><label for="sbUrl">URL del proyecto</label><input id="sbUrl" type="url" placeholder="https://xxxxxxxx.supabase.co" autocapitalize="off" autocorrect="off"></div>
+  <div class="field"><label for="sbKey">Clave anon (la pública)</label><input id="sbKey" type="text" placeholder="eyJ..." autocapitalize="off" autocorrect="off"></div>
+  <p class="note">Usa solo la clave <b>anon</b>, que está pensada para ir en el navegador. Nunca pegues aquí la <b>service_role</b>.</p>
+  <ul class="rows" id="r-net"></ul>
+
+  <h2>Memoria con imágenes grandes</h2>
+  <div class="field"><label for="memPx">Ancho de cada imagen (11 imágenes)</label>
+    <select id="memPx"><option value="1200">1200 px</option><option value="1600" selected>1600 px</option><option value="2000">2000 px</option><option value="2400">2400 px</option></select></div>
+  <p class="note">Genera 11 imágenes distintas y las muestra a la vez. Si la página se recarga sola, anótalo: también es un resultado.</p>
+  <ul class="rows" id="r-mem"></ul>
+  <div id="memBox" class="hide"></div>
+
+  <h2>Resultado para copiar</h2>
+  <textarea id="out" rows="14" readonly></textarea>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var ORIG = ["images/ant/logo/logo-nombre.png", "images/ant/logo/logo-simbolo.png", "images/ant/products/Amazonas.jpg", "images/ant/products/Bowl Grande.jpg", "images/ant/products/Bowl Mediano.jpg", "images/ant/products/Bowl y Smoothie.jpg", "images/ant/products/Cacao.png", "images/ant/products/Carioca.jpg", "images/ant/products/Cuchareando kiwi.jpg", "images/ant/products/Cuchareando.jpg", "images/ant/products/Fit.jpg", "images/ant/products/Lifestyle 1.jpg", "images/ant/products/Lifestyle 2.jpg", "images/ant/products/Lifestyle 3.jpg", "images/ant/products/Lifestyle 4 Smoothie.jpg", "images/ant/products/Litro.jpg", "images/ant/products/Manaos.png", "images/ant/products/Miel.jpg", "images/ant/products/Portada.jpg", "images/ant/products/Selva.jpg", "images/ant/products/Smoothies.jpg", "images/ant/products/cafe-1.jpg", "images/ant/products/frutal.jpg", "images/ant/products/tucano.jpg"];
+  var WEBP = ["images/gallery/amazonas-plate.webp", "images/gallery/bowl-grande.webp", "images/gallery/bowl-mediano.webp", "images/gallery/bowl-pequeno.webp", "images/gallery/bowl-tamanos-1.webp", "images/gallery/bowl-tamanos-2.webp", "images/gallery/bowl-y-smoothie.webp", "images/gallery/carioca-plate.webp", "images/gallery/cuchareando-kiwi.webp", "images/gallery/cuchareando.webp", "images/gallery/fit-plate.webp", "images/gallery/lifestyle-1.webp", "images/gallery/lifestyle-2.webp", "images/gallery/lifestyle-3.webp", "images/gallery/lifestyle-4-smoothie.webp", "images/gallery/litro-mesa.webp", "images/gallery/miel.webp", "images/gallery/portada.webp", "images/gallery/selva-plate.webp", "images/gallery/smoothies.webp", "images/hero-photo.webp", "images/litro-visual.webp", "images/logo-nombre-small.webp", "images/logo-nombre.webp", "images/logo-simbolo.webp", "images/thumbnails/amazonas.webp", "images/thumbnails/americano.webp", "images/thumbnails/cacao.webp", "images/thumbnails/carioca.webp", "images/thumbnails/espresso.webp", "images/thumbnails/fit.webp", "images/thumbnails/frutal.webp", "images/thumbnails/latte.webp", "images/thumbnails/manaos.webp", "images/thumbnails/selva.webp", "images/thumbnails/tucano.webp", "images/zoom/amazonas.webp", "images/zoom/cacao.webp", "images/zoom/carioca.webp", "images/zoom/fit.webp", "images/zoom/frutal.webp", "images/zoom/hero.webp", "images/zoom/litro.webp", "images/zoom/manaos.webp", "images/zoom/selva.webp", "images/zoom/tucano.webp"];
+
+  var $ = function(id){ return document.getElementById(id); };
+  var rows = {}, texts = {}, order = [], SECTIONS = {};
+  var TITLES = {dev:'Dispositivo', css:'CSS', js:'JavaScript', fmt:'Formatos', shape:'Esquinas', img:'Imágenes del sitio', net:'Supabase', mem:'Memoria'};
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function add(sec, key, name, st, det){
+    var label = st === 'ok' ? 'OK' : (st === 'bad' ? 'FALLA' : 'INFO');
+    var html = '<div class="left"><div class="name">' + esc(name) + '</div>' +
+      (det ? '<div class="det">' + esc(det) + '</div>' : '') + '</div><span class="res ' + st + '">' + label + '</span>';
+    if (!rows[key]){
+      var li = document.createElement('li');
+      $('r-' + sec).appendChild(li);
+      rows[key] = li; order.push(key); SECTIONS[key] = sec;
+    }
+    rows[key].innerHTML = html;
+    texts[key] = label + ' | ' + TITLES[sec] + ' | ' + name + (det ? ' | ' + det : '');
+    refresh();
+  }
+
+  function refresh(){
+    var ok = 0, bad = 0, info = 0, lines = [];
+    for (var i = 0; i < order.length; i++){
+      var t = texts[order[i]]; lines.push(t);
+      if (t.indexOf('OK |') === 0) ok++; else if (t.indexOf('FALLA |') === 0) bad++; else info++;
+    }
+    $('summary').textContent = ok + ' OK · ' + bad + ' con falla · ' + info + ' informativas';
+    $('out').value = lines.join('\n');
+  }
+
+  function T(sec, key, name, fn){
+    try {
+      var r = fn();
+      add(sec, key, name, r.ok === true ? 'ok' : (r.ok === false ? 'bad' : 'info'), r.detail || '');
+    } catch (e) { add(sec, key, name, 'bad', 'Error: ' + (e && e.message ? e.message : e)); }
+  }
+  function tryFn(src){ try { new Function(src); return true; } catch (e) { return false; } }
+  function sup(prop, val){ return !!(window.CSS && CSS.supports && CSS.supports(prop, val)); }
+  function mb(b){ return (b / 1048576).toFixed(1).replace('.', ',') + ' MB'; }
+
+  /* ---------- Dispositivo ---------- */
+  function runDevice(){
+    var ua = navigator.userAgent;
+    var m = ua.match(/OS (\d+)[_.](\d+)(?:[_.](\d+))?/);
+    add('dev', 'd1', 'Navegador', 'info', ua);
+    add('dev', 'd2', 'Versión de iOS detectada', 'info', m ? (m[1] + '.' + m[2] + (m[3] ? '.' + m[3] : '')) : 'No se pudo leer del navegador');
+    add('dev', 'd3', 'Pantalla y ventana', 'info', screen.width + '×' + screen.height + ' px, ventana ' + window.innerWidth + '×' + window.innerHeight + ', densidad ' + (window.devicePixelRatio || 1));
+    add('dev', 'd4', 'Modo app (pantalla de inicio)', 'info', window.navigator.standalone ? 'Sí, abierto desde el ícono' : 'No, abierto en el navegador');
+    add('dev', 'd5', 'Protocolo de esta página', location.protocol === 'https:' ? 'ok' : 'info', location.protocol + '//' + location.host);
+  }
+
+  /* ---------- CSS ---------- */
+  function box(html){
+    var d = document.createElement('div');
+    d.style.cssText = 'position:absolute;top:0;left:0;width:300px;visibility:hidden;';
+    d.innerHTML = html;
+    document.body.appendChild(d);
+    return d;
+  }
+  function runCss(){
+    T('css', 'c1', 'CSS Grid', function(){
+      var d = box('<div style="display:grid;grid-template-columns:50px 50px;width:200px"><div style="height:10px"></div><div id="g2" style="height:10px"></div></div>');
+      var x = d.querySelector('#g2').offsetLeft; document.body.removeChild(d);
+      return {ok: x === 50, detail: x === 50 ? 'Funciona' : 'No funciona (el sitio usa grid en tarjetas y chips)'};
+    });
+    T('css', 'c2', 'Espaciado “gap” en flexbox', function(){
+      var d = box('<div style="display:flex;gap:10px"><div style="width:20px;height:10px;flex:none"></div><div id="f2" style="width:20px;height:10px;flex:none"></div></div>');
+      var x = d.querySelector('#f2').offsetLeft; document.body.removeChild(d);
+      return {ok: x === 30, detail: x === 30 ? 'Funciona' : 'No funciona (los elementos quedan pegados)'};
+    });
+    T('css', 'c3', 'Atajo “inset”', function(){
+      var d = box('<div style="position:relative;width:100px;height:100px"><div id="i1" style="position:absolute;inset:0"></div></div>');
+      var w = d.querySelector('#i1').offsetWidth; document.body.removeChild(d);
+      return {ok: w === 100, detail: w === 100 ? 'Funciona' : 'No funciona (usa top/right/bottom/left)'};
+    });
+    T('css', 'c4', 'aspect-ratio', function(){
+      var d = box('<div id="a1" style="width:100px;aspect-ratio:1/1"></div>');
+      var h = d.querySelector('#a1').offsetHeight; document.body.removeChild(d);
+      return {ok: h === 100, detail: h === 100 ? 'Funciona' : 'No funciona (necesita altura fija de respaldo)'};
+    });
+    T('css', 'c5', 'object-fit', function(){ var s = sup('object-fit', 'cover'); return {ok: s, detail: s ? 'Funciona' : 'No funciona (las fotos se deforman)'}; });
+    T('css', 'c6', 'Máscaras (mask-image)', function(){
+      var a = sup('-webkit-mask-image', 'linear-gradient(#000,#000)'), b = sup('mask-image', 'linear-gradient(#000,#000)');
+      return {ok: a || b, detail: 'Con prefijo -webkit-: ' + (a ? 'sí' : 'no') + '. Sin prefijo: ' + (b ? 'sí' : 'no')};
+    });
+    T('css', 'c7', 'position: sticky', function(){
+      var a = sup('position', 'sticky'), b = sup('position', '-webkit-sticky');
+      return {ok: a || b, detail: 'Sin prefijo: ' + (a ? 'sí' : 'no') + '. Con -webkit-: ' + (b ? 'sí' : 'no') + (!a && b ? ' (hay que escribirlo con prefijo)' : '')};
+    });
+    T('css', 'c8', 'Desenfoque de fondo (backdrop-filter)', function(){
+      var a = sup('backdrop-filter', 'blur(1px)'), b = sup('-webkit-backdrop-filter', 'blur(1px)');
+      return {ok: a || b, detail: 'Sin prefijo: ' + (a ? 'sí' : 'no') + '. Con -webkit-: ' + (b ? 'sí' : 'no')};
+    });
+    T('css', 'c9', 'Variables CSS', function(){ var s = sup('(--a:0)'); return {ok: s, detail: s ? 'Funciona' : 'No funciona'}; });
+    T('css', 'c10', 'Zona segura (env safe-area)', function(){ var s = sup('padding-top', 'env(safe-area-inset-top)'); return {ok: s, detail: s ? 'Funciona' : 'No funciona'}; });
+    T('css', 'c11', 'clamp()', function(){ var s = sup('width', 'clamp(1px,2px,3px)'); return {ok: s ? true : null, detail: s ? 'Funciona' : 'No funciona (tu sitio ya tiene valor de respaldo)'}; });
+  }
+
+  /* ---------- JavaScript ---------- */
+  function runJs(){
+    var list = [
+      ['j1', 'fetch', typeof window.fetch === 'function', 'Lo usa Supabase'],
+      ['j2', 'Promise', typeof window.Promise === 'function', 'Lo usa Supabase'],
+      ['j3', 'WebSocket', typeof window.WebSocket === 'function', 'Para tiempo real'],
+      ['j4', 'async/await', tryFn('return (async function(){ await 1; })'), 'Sintaxis moderna'],
+      ['j5', 'Encadenamiento opcional (a?.b)', tryFn('var a={}; return a?.b;'), 'Si falla, hay que compilar el código para Safari 12'],
+      ['j6', 'Nullish (a ?? b)', tryFn('return null ?? 1;'), 'Si falla, hay que compilar el código para Safari 12'],
+      ['j7', 'Clases, flechas y plantillas', tryFn('class A{}; var f=()=>1; return `x${f()}`;'), ''],
+      ['j8', 'AbortController', typeof window.AbortController === 'function', 'Safari 12.1 en adelante'],
+      ['j9', 'Object.fromEntries', typeof Object.fromEntries === 'function', 'Safari 12.1 en adelante'],
+      ['j10', 'Array.flat', typeof Array.prototype.flat === 'function', 'Safari 12.1 en adelante'],
+      ['j11', 'IntersectionObserver', typeof window.IntersectionObserver === 'function', ''],
+      ['j12', 'ResizeObserver', typeof window.ResizeObserver === 'function', 'Safari 13.1 en adelante'],
+      ['j13', 'Web Crypto (números aleatorios)', !!(window.crypto && window.crypto.getRandomValues), ''],
+      ['j14', 'IndexedDB', typeof window.indexedDB !== 'undefined', 'Para guardar ventas sin internet'],
+      ['j15', 'Service Worker', 'serviceWorker' in navigator, 'Para modo sin internet'],
+      ['j16', 'API de portapapeles', !!navigator.clipboard, 'Safari 13.1 en adelante'],
+      ['j17', 'Notificaciones web', typeof window.Notification !== 'undefined', 'iOS no las ofrece en este modelo']
+    ];
+    for (var i = 0; i < list.length; i++){
+      (function(it){ add('js', it[0], it[1], it[2] ? 'ok' : 'bad', it[3]); })(list[i]);
+    }
+    T('js', 'j18', 'localStorage', function(){
+      localStorage.setItem('__t', '1'); var v = localStorage.getItem('__t'); localStorage.removeItem('__t');
+      return {ok: v === '1', detail: v === '1' ? 'Funciona' : 'No guarda datos'};
+    });
+  }
+
+  /* ---------- Formatos y emojis ---------- */
+  function renderGlyph(ch){
+    var c = document.createElement('canvas'); c.width = 40; c.height = 40;
+    var x = c.getContext('2d'); x.font = '28px sans-serif'; x.textBaseline = 'top'; x.fillText(ch, 4, 4);
+    return c.toDataURL();
+  }
+  function runFormats(){
+    T('fmt', 'f1', 'WebP (detección por canvas)', function(){
+      var c = document.createElement('canvas'); c.width = 1; c.height = 1;
+      var ok = !!(c.getContext && c.getContext('2d')) && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+      return {ok: ok, detail: ok ? 'Soporta WebP' : 'No soporta WebP: todas las fotos usan el respaldo'};
+    });
+
+    var WEBP1 = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA';
+    var PNG1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    var holder = document.createElement('div'); holder.className = 'hide';
+    holder.innerHTML = '<picture><source type="image/webp" srcset="' + WEBP1 + '"><img id="pimg" alt="" src="' + PNG1 + '"></picture>';
+    document.body.appendChild(holder);
+    var pimg = holder.querySelector('#pimg');
+    function report(){
+      var cs = pimg.currentSrc || pimg.src || '';
+      var picked = cs.indexOf('image/webp') > -1 ? 'WebP' : (cs.indexOf('image/png') > -1 ? 'PNG de respaldo' : 'desconocido');
+      add('fmt', 'f2', '<picture> con respaldo', picked === 'desconocido' ? 'bad' : 'ok', 'El navegador eligió: ' + picked + (picked === 'PNG de respaldo' ? ' (así funcionará el respaldo sin JavaScript)' : ''));
+      document.body.removeChild(holder);
+    }
+    if (pimg.complete) report(); else { pimg.onload = report; pimg.onerror = report; }
+
+    var EM = [['\uD83C\uDF4C','Banano'], ['\uD83C\uDF53','Fresa'], ['\uD83E\uDD5D','Kiwi'], ['\uD83E\uDD65','Coco'], ['\uD83E\uDD5C','Maní'], ['\uD83E\uDD5B','Leche'], ['\uD83E\uDD6D','Mango'], ['\uD83E\uDED0','Arándanos'], ['\uD83E\uDD63','Bowl con cuchara']];
+    var ref1 = '', ref2 = '', canvasOk = true;
+    try { ref1 = renderGlyph('\uDBFF\uDFFF'); ref2 = renderGlyph('\uD83E\uDFFF'); } catch (e) { canvasOk = false; }
+    var shown = '', okList = [], badList = [];
+    for (var i = 0; i < EM.length; i++){
+      shown += EM[i][0] + ' ';
+      var g = '';
+      try { g = renderGlyph(EM[i][0]); } catch (e) { canvasOk = false; }
+      if (canvasOk && g !== ref1 && g !== ref2) okList.push(EM[i][1]); else if (canvasOk) badList.push(EM[i][1]);
+    }
+    $('emojis').textContent = shown;
+    if (!canvasOk){ add('fmt', 'f3', 'Emojis del juego (estimación)', 'info', 'Este navegador no permite la medición automática; mira la fila de emojis de arriba: un cuadro o “?” significa que falta.'); return; }
+    add('fmt', 'f3', 'Emojis del juego (estimación)', badList.length ? 'bad' : 'ok', 'Se ven: ' + (okList.join(', ') || 'ninguno') + (badList.length ? '. Probablemente faltan: ' + badList.join(', ') : '') + '. Confirma mirando la fila de emojis de arriba: un cuadro o “?” significa que falta.');
+  }
+
+  /* ---------- Esquinas ---------- */
+  function sampleImage(){
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#59358C"/><stop offset="1" stop-color="#E8175D"/></linearGradient></defs>' +
+      '<rect width="240" height="240" fill="url(#g)"/><rect x="6" y="6" width="228" height="228" fill="none" stroke="#95C23D" stroke-width="12"/></svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  function runShapes(){
+    var src = sampleImage();
+    var defs = [
+      ['A', 'blobA', 'A: como está hoy en el sitio'],
+      ['B', 'blobB', 'B: borde en la propia imagen'],
+      ['C', 'blobC', 'C: A con máscara de respaldo']
+    ];
+    var html = '';
+    for (var i = 0; i < defs.length; i++){
+      html += '<div class="shape"><div class="blob ' + defs[i][1] + '" data-k="' + defs[i][0] + '"><img alt="" src="' + src + '"></div><p>' + defs[i][2] + '</p>' +
+        '<button type="button" class="small" data-a="' + defs[i][0] + '|redonda">Redonda</button><button type="button" class="small alt" data-a="' + defs[i][0] + '|cuadrada">Cuadrada</button></div>';
+    }
+    $('shapes').innerHTML = html;
+    $('shapes').addEventListener('click', function(e){
+      var t = e.target;
+      while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-a') || (t.className && String(t.className).indexOf('blob ') > -1)))) t = t.parentNode;
+      if (!t || t === this) return;
+      var a = t.getAttribute('data-a');
+      if (a){
+        var p = a.split('|');
+        add('shape', 's' + p[0], 'Forma ' + p[0], p[1] === 'redonda' ? 'ok' : 'bad', 'Se ve ' + p[1]);
+      } else if (t.classList){ t.classList.toggle('alt'); }
+    });
+  }
+
+  /* ---------- Imágenes del sitio ---------- */
+  function headSizes(list, key, name){
+    var total = 0, known = 0, big = [], pending = list.length;
+    if (!window.fetch){ add('img', key, name, 'bad', 'Este navegador no tiene fetch'); return; }
+    list.forEach(function(p){
+      fetch(encodeURI(p), {method: 'HEAD', cache: 'no-store'}).then(function(r){
+        var len = parseInt(r.headers.get('content-length') || '0', 10);
+        if (r.ok && len){ total += len; known++; big.push([p, len]); }
+      }).catch(function(){}).then(function(){
+        pending--;
+        if (pending === 0){
+          big.sort(function(a, b){ return b[1] - a[1]; });
+          var top = big.slice(0, 4).map(function(x){ return x[0].split('/').pop() + ' ' + mb(x[1]); }).join(', ');
+          add('img', key, name, known ? 'info' : 'bad', known ? ('Total ' + mb(total) + ' en ' + known + ' de ' + list.length + ' archivos. Más pesadas: ' + top) : 'No se pudo leer el tamaño (¿esta página está en el mismo dominio?)');
+        }
+      });
+    });
+  }
+  function loadImages(list, sequential, key, name){
+    var res = {ok: 0, err: 0, to: 0, mp: 0}, t0 = Date.now(), left = list.length, idx = 0;
+    var box = $('memBox');
+    add('img', key, name, 'info', 'Cargando ' + list.length + ' imágenes…');
+    function settle(){
+      left--;
+      if (left === 0){
+        var secs = ((Date.now() - t0) / 1000).toFixed(1).replace('.', ',');
+        add('img', key, name, (res.err + res.to) === 0 ? 'ok' : 'bad',
+          res.ok + ' de ' + list.length + ' cargaron, ' + res.err + ' con error, ' + res.to + ' sin respuesta en 30 s, ' + res.mp.toFixed(0) + ' megapíxeles decodificados, ' + secs + ' s');
+      } else if (sequential){ next(); }
+    }
+    function one(p){
+      var im = new Image(), done = false;
+      var tm = setTimeout(function(){ if (!done){ done = true; res.to++; settle(); } }, 30000);
+      im.onload = function(){ if (done) return; done = true; clearTimeout(tm); res.ok++; res.mp += im.naturalWidth * im.naturalHeight / 1000000; settle(); };
+      im.onerror = function(){ if (done) return; done = true; clearTimeout(tm); res.err++; settle(); };
+      box.appendChild(im);
+      im.src = encodeURI(p) + '?t=' + t0 + '_' + Math.random().toString(36).slice(2, 7);
+    }
+    function next(){ if (idx < list.length){ one(list[idx++]); } }
+    if (sequential){ next(); } else { for (var i = 0; i < list.length; i++){ one(list[i]); } }
+  }
+  function runImages(sequential){
+    $('memBox').innerHTML = '';
+    if (!sequential){
+      headSizes(ORIG, 'i1', 'Peso de los respaldos JPG/PNG (images/ant)');
+      headSizes(WEBP, 'i2', 'Peso de los archivos WebP (referencia)');
+    }
+    loadImages(ORIG, sequential, sequential ? 'i4' : 'i3', sequential ? 'Respaldos cargados de a uno' : 'Respaldos cargados todos a la vez');
+  }
+
+  /* ---------- Supabase ---------- */
+  function runNet(){
+    var url = $('sbUrl').value.replace(/\/+$/, '').replace(/^\s+|\s+$/g, ''), key = $('sbKey').value.replace(/^\s+|\s+$/g, '');
+    if (!/^https:\/\/[^\/]+$/.test(url)){ add('net', 'n0', 'URL del proyecto', 'bad', 'Escribe la URL completa, por ejemplo https://abcdefgh.supabase.co'); return; }
+    var t0 = Date.now();
+    add('net', 'n1', 'Conexión segura (HTTPS) a Supabase', 'info', 'Probando…');
+    var headers = key ? {apikey: key} : {};
+    if (window.fetch){
+      fetch(url + '/auth/v1/health', {headers: headers}).then(function(r){
+        add('net', 'n1', 'Conexión segura (HTTPS) a Supabase', 'ok', 'Respuesta HTTP ' + r.status + ' en ' + (Date.now() - t0) + ' ms. El certificado y CORS funcionan.');
+      }).catch(function(e){
+        add('net', 'n1', 'Conexión segura (HTTPS) a Supabase', 'bad', 'Falló: ' + (e && e.message ? e.message : e) + '. Puede ser certificado, red o CORS.');
+      });
+    } else { add('net', 'n1', 'Conexión segura (HTTPS) a Supabase', 'bad', 'Este navegador no tiene fetch'); }
+
+    if (!key){ add('net', 'n2', 'WebSocket (tiempo real)', 'info', 'Pega la clave anon para probarlo'); return; }
+    var settled = false, ws, t1 = Date.now();
+    add('net', 'n2', 'WebSocket (tiempo real)', 'info', 'Probando…');
+    var timer = setTimeout(function(){ if (!settled){ settled = true; add('net', 'n2', 'WebSocket (tiempo real)', 'bad', 'Sin respuesta en 8 s'); try { ws.close(); } catch (e) {} } }, 8000);
+    try {
+      ws = new WebSocket('wss://' + url.replace(/^https:\/\//, '') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(key) + '&vsn=1.0.0');
+      ws.onopen = function(){ if (settled) return; settled = true; clearTimeout(timer); add('net', 'n2', 'WebSocket (tiempo real)', 'ok', 'Conectó en ' + (Date.now() - t1) + ' ms'); try { ws.close(); } catch (e) {} };
+      ws.onerror = function(){ if (settled) return; settled = true; clearTimeout(timer); add('net', 'n2', 'WebSocket (tiempo real)', 'bad', 'No abrió: clave inválida, certificado o bloqueo de red'); };
+    } catch (e) {
+      settled = true; clearTimeout(timer); add('net', 'n2', 'WebSocket (tiempo real)', 'bad', 'Error: ' + e.message);
+    }
+  }
+
+  /* ---------- Memoria ---------- */
+  function runMem(){
+    var px = parseInt($('memPx').value, 10) || 1600, w = px, h = Math.round(px * 0.75), n = 11, made = 0, box = $('memBox'), mp = 0;
+    box.innerHTML = '';
+    add('mem', 'm1', 'Imágenes grandes a la vez (' + n + ' de ' + w + '×' + h + ')', 'info', 'Generando…');
+    function make(){
+      try {
+        var c = document.createElement('canvas'); c.width = w; c.height = h;
+        var x = c.getContext('2d'), g = x.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, 'hsl(' + (made * 31) % 360 + ',60%,40%)'); g.addColorStop(1, 'hsl(' + (made * 31 + 120) % 360 + ',70%,60%)');
+        x.fillStyle = g; x.fillRect(0, 0, w, h);
+        for (var i = 0; i < 80; i++){
+          x.fillStyle = 'rgba(' + (Math.random() * 255 | 0) + ',' + (Math.random() * 255 | 0) + ',' + (Math.random() * 255 | 0) + ',.5)';
+          x.fillRect(Math.random() * w, Math.random() * h, Math.random() * w / 4, Math.random() * h / 4);
+        }
+        var im = new Image(); im.src = c.toDataURL('image/jpeg', 0.85); box.appendChild(im); mp += w * h / 1000000;
+      } catch (e) { add('mem', 'm1', 'Imágenes grandes a la vez', 'bad', 'No se pudo generar: ' + e.message); return; }
+      made++;
+      if (made < n){ setTimeout(make, 30); } else { setTimeout(check, 4000); }
+    }
+    function check(){
+      var imgs = box.getElementsByTagName('img'), ok = 0;
+      for (var i = 0; i < imgs.length; i++){ if (imgs[i].complete && imgs[i].naturalWidth > 0) ok++; }
+      add('mem', 'm1', 'Imágenes grandes a la vez (' + n + ' de ' + w + '×' + h + ')', ok === n ? 'ok' : 'bad', ok + ' de ' + n + ' se mantienen cargadas (' + mp.toFixed(0) + ' megapíxeles en total)');
+    }
+    setTimeout(make, 30);
+  }
+
+  /* ---------- Eventos ---------- */
+  $('bImg').addEventListener('click', function(){ runImages(false); });
+  $('bImg1').addEventListener('click', function(){ runImages(true); });
+  $('bNet').addEventListener('click', runNet);
+  $('bMem').addEventListener('click', runMem);
+  $('bSel').addEventListener('click', function(){
+    var t = $('out'); t.focus(); t.select();
+    try { t.setSelectionRange(0, 999999); } catch (e) {}
+    try { document.execCommand('copy'); } catch (e) {}
+  });
+
+  function safe(fn){ try { fn(); } catch (e) { add('dev', 'err_' + (fn.name || 'x'), 'Error al ejecutar un grupo de pruebas', 'bad', e && e.message ? e.message : String(e)); } }
+  safe(runDevice); safe(runCss); safe(runJs); safe(runFormats); safe(runShapes);
+})();
+</script>
+</body>
+</html>

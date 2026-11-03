@@ -1,0 +1,31 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Dependencias y builds
+node_modules/
+dist/
+build/
+.next/
+coverage/
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# Archivos de diseño pesados (viven fuera del repo)
+*.psd
+*.ai
+*.jfif
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.bak
+*.log
+
+# Claude Code local
+.claude/settings.local.json
