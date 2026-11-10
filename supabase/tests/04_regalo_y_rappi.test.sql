@@ -39,7 +39,7 @@ exception when others then insert into r (k, s) values (p_k, sqlstate); end $$;
 select pg_temp.como('00000000-0000-0000-0000-000000000202');
 
 -- El valor por omisión de la regla (versión 2) es un porcentaje de la primera compra.
-select is(private.regla_vigente('bienvenida.regalo') ->> 'tipo', 'descuento_compra', 'regla inicial: porcentaje de la primera compra (provisional)');
+select is(private.regla_vigente('bienvenida.regalo')::text, '{"tipo": "toppings_gratis", "cantidad": 1, "toppings": null}', 'regla inicial: 1 topping gratis en la primera compra');
 select is((select version from public.reglas_negocio where clave = 'bienvenida.regalo' and vigente_hasta is null), 2, 'la versión 1 quedó cerrada y rige la 2');
 
 -- =============================================================================================

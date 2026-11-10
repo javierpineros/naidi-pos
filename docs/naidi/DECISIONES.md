@@ -29,7 +29,7 @@
 
 ## Pendientes
 
-- Elegir el regalo de bienvenida. Puede ser 1 o varios toppings gratis, o un porcentaje de la primera compra (la regla `bienvenida.regalo` admite ambos, más un descuento en un bowl). Hoy rige, provisional, 20% de la primera compra; el dueño lo cambia sin tocar código.
+- Regalo de bienvenida (decidido: toppings gratis; falta confirmar si 1 o varios). Puede ser 1 o varios toppings gratis, o un porcentaje de la primera compra (la regla `bienvenida.regalo` admite ambos, más un descuento en un bowl). Decidido por Javier: por defecto, toppings gratis (hoy 1 topping, el de más valor, en la primera compra); el dueño cambia la cantidad o el tipo sin tocar código.
 - La anulación de una venta pagada exige hoy solo el rol de dueño; el PIN y el segundo factor se suman en H4.
 
 - Confirmar con Bold si el plan de Naidi incluye la API de pagos en línea y los montos mínimos y máximos por método (preguntas ya redactadas en `our-memories/docs/02-suscripciones-bold.md` §10). Verificar en la prueba real el nombre de la cabecera de firma y el esquema del webhook en pruebas.
