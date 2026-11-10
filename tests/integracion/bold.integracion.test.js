@@ -181,7 +181,7 @@ describe('pago en línea con Bold contra la base real', () => {
     const consulta = (token) => new Request('https://x.test/bold-conciliar', { method: 'POST', headers: token ? { 'x-conciliacion-token': token } : {} });
     expect((await manejarConciliacion(consulta('malo'), deps)).status).toBe(401);
     const conBold = { ...deps, fetch: async (url) => url.endsWith(c.checkout.orderId)
-      ? new Response(JSON.stringify({ payment_status: 'APPROVED', payment_id: 'bp-conc', amount: { total: 4000 } }), { status: 200 })
+      ? new Response(JSON.stringify({ payment_status: 'APPROVED', payment_id: 'bp-conc-' + sufijo, amount: { total: 4000 } }), { status: 200 })
       : new Response('{}', { status: 404 }) };
     const r = await manejarConciliacion(consulta('tok-local'), conBold);
     expect((await r.json()).resumen[c.checkout.orderId]).toBe('aprobado');
