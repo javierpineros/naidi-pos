@@ -206,8 +206,8 @@ select is((select s from r where k = 'anon_rappi'), '42501', 'anónimo: no regis
 select is((select s from r where k = 'cli_rappi'), '42501', 'cliente: no registra ventas de Rappi');
 select is((select s from r where k = 'cli_vcompra'), '42501', 'cliente: no aplica descuentos a una venta');
 select is((select n from r where k = 'cli_ver_rappi'), 0::bigint, 'cliente: no ve las ventas de Rappi');
-select is((select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and has_function_privilege('anon', p.oid, 'execute')),
-  0::bigint, 'ninguna función pública es ejecutable por anónimos (incluidas las nuevas)');
+select is((select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname <> 'pantalla_estado' and has_function_privilege('anon', p.oid, 'execute')),
+  0::bigint, 'ninguna función pública es ejecutable por anónimos (incluidas las nuevas; salvo pantalla_estado)');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname in ('public', 'private') and p.prosecdef
              and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')),

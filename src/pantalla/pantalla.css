@@ -1,0 +1,75 @@
+/* Pantalla del cliente (iPad mini 2, Safari 12). Ver docs/naidi/COMPATIBILIDAD_IPAD.md.
+   Reglas de este archivo: sin gap, inset, aspect-ratio, clamp(), min()/max(), var(), sticky ni :is()/:where()/:has().
+   Colores de marca: púrpura #59358C, verde #95C23D, crema #FFF7EC. */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+body {
+  font-family: Montserrat, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: #fff7ec;
+  color: #59358c;
+  font-size: 22px;
+  line-height: 1.35;
+  -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+h1 { font-family: Fraunces, Georgia, 'Times New Roman', serif; font-size: 44px; line-height: 1.1; margin: 0 0 14px; font-weight: 700; }
+p { margin: 0 0 12px; }
+ul { list-style: none; margin: 0; padding: 0; }
+.mono { font-family: 'Space Mono', Menlo, Courier, monospace; }
+
+#app { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+
+.pantalla { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.cabecera { -webkit-flex: none; flex: none; height: 96px; padding: 16px 32px; background: #ffffff; border-bottom: 4px solid #95c23d; }
+.logo { display: block; height: 64px; width: auto; }
+.cuerpo { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-height: 0; padding: 28px 40px; display: -webkit-flex; display: flex; }
+
+/* Mensajes (sin activar, desactivada, pagada) */
+.mensaje { -webkit-flex: 1; flex: 1; text-align: center; margin: auto; padding: 0 24px; }
+.mensaje h1 { font-size: 52px; }
+.mensaje p { font-size: 26px; }
+.est-apagada .cuerpo { background: #fff7ec; }
+.check { width: 140px; height: 140px; line-height: 140px; margin: 0 auto 18px; border-radius: 70px; background: #95c23d; color: #ffffff; font-size: 96px; font-weight: 700; }
+.total-gracias { font-size: 56px; font-weight: 700; margin: 8px 0 18px; }
+.est-pagada .cuerpo { background: #f1f8e3; }
+
+/* Reposo: QR de entrada */
+.reposo { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+.reposo-texto { -webkit-flex: 1 1 auto; flex: 1 1 auto; max-width: 440px; margin-right: 48px; }
+.reposo-texto p { font-size: 28px; }
+.qr-caja { -webkit-flex: none; flex: none; width: 380px; height: 380px; padding: 16px; background: #ffffff; border: 4px solid #59358c; border-radius: 24px; }
+.qr-caja svg { display: block; width: 100%; height: 100%; }
+
+/* Venta en curso */
+.venta { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; min-height: 0; }
+.venta-detalle { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-right: 32px; }
+.lineas { border-top: 2px solid #eee1cf; }
+.linea { display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between; -webkit-align-items: flex-start; align-items: flex-start; padding: 14px 0; border-bottom: 2px solid #eee1cf; }
+.linea-texto { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; padding-right: 20px; }
+.linea-nombre { font-weight: 700; font-size: 26px; }
+.linea-detalle { font-size: 20px; color: #7a6a80; margin-top: 2px; }
+.linea-detalle.descuento { color: #3a7d0a; font-weight: 600; }
+.linea-precio { -webkit-flex: none; flex: none; font-size: 26px; font-weight: 700; }
+.ahorro { margin-top: 14px; font-size: 22px; color: #3a7d0a; font-weight: 600; }
+
+.venta-pago { -webkit-flex: none; flex: none; width: 360px; padding: 24px; background: #59358c; color: #ffffff; border-radius: 24px; text-align: center; align-self: flex-start; }
+.total-rotulo { font-size: 24px; opacity: 0.9; }
+.total { font-size: 64px; font-weight: 700; color: #95c23d; margin: 4px 0 20px; word-break: break-all; }
+.formas-rotulo { font-size: 20px; opacity: 0.9; margin-bottom: 8px; }
+.forma { display: inline-block; margin: 0 6px 8px; padding: 8px 16px; background: #ffffff; color: #59358c; border-radius: 999px; font-size: 20px; font-weight: 700; }
+.transferencia { margin-top: 10px; padding-top: 14px; border-top: 2px solid rgba(255, 255, 255, 0.35); font-size: 20px; }
+.transferencia span { display: block; }
+.transferencia strong { display: block; font-size: 32px; margin-top: 4px; word-break: break-all; }
+
+.aviso-red { position: absolute; right: 24px; bottom: 20px; padding: 8px 18px; background: #59358c; color: #ffffff; border-radius: 999px; font-size: 18px; opacity: 0.9; }
+
+/* iPad vertical */
+@media (orientation: portrait) {
+  .reposo { -webkit-flex-direction: column; flex-direction: column; text-align: center; }
+  .reposo-texto { max-width: 560px; margin: 0 0 32px 0; }
+  .qr-caja { width: 440px; height: 440px; }
+  .venta { -webkit-flex-direction: column; flex-direction: column; }
+  .venta-detalle { padding-right: 0; margin-bottom: 20px; }
+  .venta-pago { width: 100%; align-self: stretch; -webkit-flex: none; flex: none; }
+}
