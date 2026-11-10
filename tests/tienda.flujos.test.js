@@ -312,7 +312,8 @@ describe('Tienda: pago en línea con Bold', () => {
     await click('[data-accion="pedir"]');
     await esperar(6);
     expect(api._s.llamadas.find((l) => l[0] === 'crearPedido')[1].pago).toBe('en_linea');
-    expect(texto('.pedido')).toContain('cuando se confirme tu pago');
+    expect(texto('[data-campo="pago-pendiente"]')).toContain('Falta pagar $4.000');
+    expect($('[data-campo="codigo"]')).toBeNull();   // el código y el QR solo aparecen cuando el pago está confirmado
     const boton = $('[data-campo="boton-bold"] script');
     expect(boton).not.toBeNull();
     expect(boton.getAttribute('data-api-key')).toBe('identidad-test');
@@ -346,8 +347,35 @@ describe('Tienda: pago en línea con Bold', () => {
   it('al volver de Bold avisa que está confirmando el pago, sin darlo por hecho', async () => {
     const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
     await montar(api, { leerBusqueda: () => '?bold-order-id=NW5-abc&bold-tx-status=approved' });
-    expect(texto('[data-campo="pago-confirmando"]')).toContain('Estamos confirmando tu pago');
-    expect($('[data-campo="pago-confirmado"]')).toBeNull();
+    expect(texto('[data-campo="pago-confirmando"]')).toContain('Bold nos dice que tu pago fue aprobado');
+    expect($('[data-campo="pago-confirmado"]')).toBeNull();                          // la redirección no es prueba de pago
+    expect(api._s.llamadas.some((l) => l[0] === 'verificarPagoBold')).toBe(true);    // pero se le pregunta a Bold por el estado real
+    expect(texto('[data-accion="pagar-ahora"]')).toContain('Intentar de nuevo');     // discreto: ya pagó, solo por si no terminó
+  });
+
+  it('al volver de Bold, si el servidor confirma el pago la tarjeta pasa a pagada y muestra el código', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
+    api._s.boldAprobado = true;
+    await montar(api, { leerBusqueda: () => '?bold-order-id=NW5-abc&bold-tx-status=approved' });
+    expect(texto('[data-campo="pago-confirmado"]')).toContain('Pago confirmado');
+    expect($('[data-campo="pago-pendiente"]')).toBeNull();
+    expect(texto('[data-campo="codigo"]')).toBe('AB23');
+    expect($('[data-accion="pagar-ahora"]')).toBeNull();
+  });
+
+  it('si Bold devuelve un pago no aprobado lo dice y deja intentar de nuevo', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
+    await montar(api, { leerBusqueda: () => '?bold-order-id=NW5-abc&bold-tx-status=rejected' });
+    expect(texto('[data-campo="pago-no-completado"]')).toContain('No vimos un pago aprobado');
+    expect(texto('[data-accion="pagar-ahora"]')).toBe('Pagar ahora');
+  });
+
+  it('lo que falta pagar va primero en Mis pedidos', async () => {
+    const pagado = enLinea({ id: 'pw-8', numero: 8, pago_en_linea_estado: 'pagado' });
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [pagado, enLinea()] });
+    await montar(api);
+    await click('[data-accion="mis-pedidos"]');
+    expect($$('.pedido').map((x) => x.dataset.numero)).toEqual(['5', '8']);
   });
 
   it('un pedido para pagar al recoger no muestra pago en línea; un error del servidor se ve en la tarjeta', async () => {

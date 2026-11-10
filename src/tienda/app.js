@@ -37,7 +37,7 @@ export function crearTienda(cfg) {
     carrito: [], hoja: null, pedidos: [], idem: uuid(), error: '', aviso: '', ocupado: false,
     paso: 'correo', correo: '', volverA: 'menu', temporizador: null,
     form: { slot: '', pago: '', cortesia: [], nota: '' }, nuevo: null,
-    pagos: {}, volviendoDePago: false,
+    pagos: {}, volviendoDePago: false, estadoRetorno: '', ultimaVerificacion: {},
   };
   const leerBusqueda = cfg.leerBusqueda || (() => (typeof window === 'undefined' ? '' : window.location.search));
 
@@ -372,12 +372,21 @@ export function crearTienda(cfg) {
     const porPagar = enLinea && abiertoP && p.pago_en_linea_estado === 'pendiente';
     const pagado = enLinea && p.pago_en_linea_estado === 'pagado';
     if (pagado) delete e.pagos[p.id];
-    const texto = porPagar && p.estado === 'recibido' ? 'Recibimos tu pedido. Lo empezamos a preparar cuando se confirme tu pago.' : textoBase;
+    const texto = porPagar ? '' : textoBase;
     const errorEl = h('p', { class: 'error', role: 'alert' });
     const acciones = [];
-    if (porPagar && !e.pagos[p.id]) {
-      acciones.push(h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'pagar-ahora', onclick: () => iniciarPago(p, errorEl) }, 'Pagar ahora'));
-    }
+    // Pago pendiente: lo primero de la tarjeta es el botón de Bold (no el código ni el QR, que solo sirven una vez pagado).
+    const aprobadoEnBold = e.volviendoDePago && /^approved$/i.test(e.estadoRetorno);
+    const bloquePago = porPagar ? h('section', { class: 'pago-pendiente', 'data-campo': 'pago-pendiente' },
+      h('h3', null, 'Falta pagar ', h('span', { class: 'mono' }, fmtCop(p.total_cop))),
+      aprobadoEnBold
+        ? h('p', { class: 'aviso', role: 'status', 'data-campo': 'pago-confirmando' }, 'Bold nos dice que tu pago fue aprobado. Estamos esperando la confirmación; esta página se actualiza sola.')
+        : e.volviendoDePago
+          ? h('p', { class: 'aviso error', role: 'status', 'data-campo': 'pago-no-completado' }, 'No vimos un pago aprobado todavía. Si ya pagaste, espera un momento; si no, puedes intentarlo de nuevo.')
+          : h('p', { class: 'pequeno' }, 'Toca el botón para pagar con tarjeta, PSE, Nequi o Bancolombia. Empezamos a preparar tu pedido cuando se confirme el pago.'),
+      e.pagos[p.id] || null,
+      !e.pagos[p.id] ? h('button', { type: 'button', class: aprobadoEnBold ? 'btn btn-texto' : 'btn btn-primario', 'data-accion': 'pagar-ahora', onclick: () => iniciarPago(p, errorEl) },
+        aprobadoEnBold ? '¿No terminaste de pagar? Intentar de nuevo' : 'Pagar ahora') : null) : null;
     if (abiertoP && !p.en_camino_en) {
       acciones.push(h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'en-camino', onclick: () => accion(() => api.voyEnCamino(p.id), errorEl, refrescarPedidos) }, 'Voy en camino'));
     }
@@ -386,13 +395,12 @@ export function crearTienda(cfg) {
     }
     return h('article', { class: 'pedido estado-' + p.estado, 'data-pedido': p.id, 'data-numero': p.numero },
       h('header', null, h('strong', null, 'Pedido #' + p.numero), h('span', { class: 'marca', 'data-campo': 'estado' }, titulo)),
-      h('p', null, texto),
+      bloquePago,
+      texto ? h('p', null, texto) : null,
       pagado ? h('p', { class: 'ok', 'data-campo': 'pago-confirmado' }, 'Pago confirmado. ¡Gracias!') : null,
-      porPagar && e.volviendoDePago ? h('p', { class: 'aviso', role: 'status', 'data-campo': 'pago-confirmando' }, 'Estamos confirmando tu pago. Puede tardar unos minutos; esta página se actualiza sola.') : null,
-      porPagar && e.pagos[p.id] ? [h('p', { class: 'pequeno' }, 'Toca el botón para pagar con tarjeta, PSE, Nequi o Bancolombia.'), e.pagos[p.id]] : null,
       h('p', { class: 'ventana' }, 'Recógelo entre las ' + horaBogota(p.ventana_inicio) + ' y las ' + horaBogota(p.ventana_fin)),
       p.en_camino_en && abiertoP ? h('p', { class: 'ok', 'data-campo': 'en-camino' }, 'Avisaste que vas en camino.') : null,
-      abiertoP
+      abiertoP && !porPagar
         ? h('div', { class: 'reclamo' },
             h('p', { class: 'pequeno' }, 'Muestra este código al recoger'),
             h('p', { class: 'codigo mono', 'data-campo': 'codigo' }, p.codigo),
@@ -412,7 +420,9 @@ export function crearTienda(cfg) {
   }
 
   function pantallaPedidos() {
-    const abiertos = e.pedidos.filter((p) => ABIERTOS.includes(p.estado));
+    // Lo que falta pagar va primero: es lo único que la persona debe hacer ahora.
+    const porPagar = (p) => p.metodo_pago === 'en_linea' && p.pago_en_linea_estado === 'pendiente';
+    const abiertos = e.pedidos.filter((p) => ABIERTOS.includes(p.estado)).sort((a, b) => (porPagar(b) ? 1 : 0) - (porPagar(a) ? 1 : 0));
     const cerrados = e.pedidos.filter((p) => !ABIERTOS.includes(p.estado));
     return h('div', { class: 'pagina' },
       cabecera(),
@@ -439,16 +449,30 @@ export function crearTienda(cfg) {
 
   async function abrirPedidos() {
     e.pantalla = 'pedidos';
+    try { if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0); } catch (x) { /* jsdom */ }
     await refrescarPedidos();
     iniciarSondeo();
     pintar();
+  }
+
+  // Si la persona ya intentó pagar (o volvió de Bold) y el pago sigue pendiente, se le pregunta a Bold por el estado real
+  // (cada 8 s como máximo por pedido). Sirve cuando el webhook tarda o no llega; el servidor decide si lo acredita.
+  async function verificarPagos() {
+    const t = ahora().getTime();
+    for (const p of e.pedidos) {
+      const pend = p.metodo_pago === 'en_linea' && p.pago_en_linea_estado === 'pendiente' && ABIERTOS.includes(p.estado);
+      if (!pend || !(e.volviendoDePago || e.pagos[p.id])) continue;
+      if (t - (e.ultimaVerificacion[p.id] || 0) < 8000) continue;
+      e.ultimaVerificacion[p.id] = t;
+      try { await api.verificarPagoBold(p.id); } catch (x) { /* el sondeo normal sigue */ }
+    }
   }
 
   function iniciarSondeo() {
     if (e.temporizador) return;
     e.temporizador = cadaTanto(() => {
       if (e.pantalla !== 'pedidos') { detenerSondeo(); return; }
-      refrescarPedidos();
+      verificarPagos().then(refrescarPedidos);
     }, intervaloMs);
   }
   function detenerSondeo() { if (e.temporizador) { parar(e.temporizador); e.temporizador = null; } }
@@ -564,7 +588,15 @@ export function crearTienda(cfg) {
     }
     e.pantalla = 'menu';
     // Si vuelve de Bold, la redirección solo indica que pasó por la pasarela: el pago lo confirma el servidor.
-    if (e.sesion && /[?&]bold-order-id=/.test(leerBusqueda())) { e.volviendoDePago = true; await abrirPedidos(); return; }
+    if (e.sesion && /[?&]bold-order-id=/.test(leerBusqueda())) {
+      e.volviendoDePago = true;
+      const m = /[?&]bold-tx-status=([^&]*)/.exec(leerBusqueda());
+      e.estadoRetorno = m ? decodeURIComponent(m[1]) : '';
+      await abrirPedidos();
+      await verificarPagos();
+      await refrescarPedidos();
+      return;
+    }
     pintar();
   }
 

@@ -179,6 +179,21 @@ begin
 end;
 $$;
 
+-- Referencias pendientes de un pedido propio: la tienda las usa para pedirle a Bold el estado real del pago
+-- cuando el cliente vuelve de pagar y el webhook aún no llegó (o no llega, por ejemplo en el ambiente de pruebas).
+create function public.mis_pagos_bold_pendientes(p_pedido uuid) returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare v_uid uuid := private.exigir_cliente();
+begin
+  if not private.bandera_activa('pago_en_linea_bold') then return '[]'::jsonb; end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('order_id', g.order_id) order by g.creado_en)
+    from public.pagos_bold g join public.pedidos_web p on p.id = g.pedido_id
+    where g.pedido_id = p_pedido and p.cliente_id = v_uid and g.estado = 'pendiente' and g.creado_en > now() - interval '48 hours'), '[]'::jsonb);
+end;
+$$;
+
 -- =============================================================================================
 -- 4. Un pedido en línea sin pagar no se prepara
 -- =============================================================================================
@@ -208,6 +223,8 @@ $$;
 -- =============================================================================================
 revoke all on function public.iniciar_pago_pedido_web(uuid) from public, anon;
 grant execute on function public.iniciar_pago_pedido_web(uuid) to authenticated;
+revoke all on function public.mis_pagos_bold_pendientes(uuid) from public, anon;
+grant execute on function public.mis_pagos_bold_pendientes(uuid) to authenticated;
 revoke all on function public.cambiar_estado_pedido_web(uuid, text) from public, anon;
 grant execute on function public.cambiar_estado_pedido_web(uuid, text) to authenticated;
 -- Solo el servidor (Edge Functions con la service_role) aplica eventos y concilia; ni clientes ni personal.

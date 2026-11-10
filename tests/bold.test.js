@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
 import { firmaIntegridad, firmaWebhook, firmaValida, iguales, normalizarEvento, eventoDeVoucher } from '../supabase/functions/_shared/bold.ts';
-import { manejarCheckout, manejarWebhook, manejarConciliacion } from '../supabase/functions/_shared/manejadores.ts';
+import { manejarCheckout, manejarWebhook, manejarConciliacion, manejarVerificacion } from '../supabase/functions/_shared/manejadores.ts';
 
 const SECRETA = 'llave-secreta-de-prueba';
 const IDENTIDAD = 'llave-identidad-de-prueba';
@@ -214,5 +214,34 @@ describe('Bold: conciliación', () => {
     });
     const j = await (await manejarConciliacion(llamar('tok-123'), deps)).json();
     expect(j.resumen).toEqual({ 'NW1-a': 'error_red' });
+  });
+});
+
+describe('Bold: verificación del cliente', () => {
+  const pedir = (cuerpo, aut) => new Request('https://x.test/bold-verificar', { method: 'POST', body: JSON.stringify(cuerpo), headers: aut ? { Authorization: aut } : {} });
+  const pendientes = { mis_pagos_bold_pendientes: { data: [{ order_id: 'NW1-a' }], error: null } };
+  const aprobado = async () => new Response(JSON.stringify({ payment_status: 'APPROVED', payment_id: 'bp-5', amount: { total: 4000 } }), { status: 200 });
+
+  it('lee las referencias pendientes con la sesión del cliente y aplica lo que dice Bold con el servidor', async () => {
+    const { deps, llamadas } = depsFalsas({ respuestas: pendientes, fetch: aprobado });
+    const r = await manejarVerificacion(pedir({ pedido_id: 'p-1' }, 'Bearer jwt'), deps);
+    expect(r.status).toBe(200);
+    expect((await r.json()).resumen).toEqual({ 'NW1-a': 'aprobado' });
+    expect(llamadas[0]).toEqual({ quien: 'usuario:Bearer jwt', nombre: 'mis_pagos_bold_pendientes', args: { p_pedido: 'p-1' } });
+    expect(llamadas[1]).toMatchObject({ quien: 'servicio', nombre: 'aplicar_evento_bold', args: { p_tipo: 'SALE_APPROVED', p_monto: 4000 } });
+  });
+
+  it('sin sesión 401, sin pedido 400, sin llaves 503; el cliente no puede mandar montos ni estados', async () => {
+    const { deps, llamadas } = depsFalsas({ respuestas: pendientes, fetch: aprobado });
+    expect((await manejarVerificacion(pedir({ pedido_id: 'p' }), deps)).status).toBe(401);
+    expect((await manejarVerificacion(pedir({}, 'Bearer j'), deps)).status).toBe(400);
+    expect((await manejarVerificacion(pedir({ pedido_id: 'p' }, 'Bearer j'), depsFalsas({ secretos: { identidad: '' } }).deps)).status).toBe(503);
+    await manejarVerificacion(pedir({ pedido_id: 'p', monto: 1, estado: 'APPROVED' }, 'Bearer j'), deps);
+    expect(Object.keys(llamadas[0].args)).toEqual(['p_pedido']);
+  });
+
+  it('si Bold aún no tiene el pago (404), no cambia nada', async () => {
+    const { deps } = depsFalsas({ respuestas: pendientes, fetch: async () => new Response('{}', { status: 404 }) });
+    expect((await (await manejarVerificacion(pedir({ pedido_id: 'p' }, 'Bearer j'), deps)).json()).resumen).toEqual({ 'NW1-a': 'sin_voucher_404' });
   });
 });

@@ -63,7 +63,11 @@ export async function manejarWebhook(req: Request, d: Dependencias): Promise<Res
   if (req.method !== 'POST') return json({ error: 'Método no permitido.' }, 405);
   const crudo = await req.text();
   if (crudo.length > 200000) return json({ error: 'Cuerpo muy grande.' }, 413);
-  if (!(await firmaValida(crudo, req.headers.get('x-bold-signature'), d.secretos.secreta))) return json({ error: 'Firma no válida.' }, 401);
+  if (!(await firmaValida(crudo, req.headers.get('x-bold-signature'), d.secretos.secreta))) {
+    // Rastro para depurar (sin datos del cuerpo ni llaves): permite distinguir "no llegó" de "llegó y la firma no coincide".
+    console.warn('[bold-webhook] firma no válida', { cabecera: !!req.headers.get('x-bold-signature'), bytes: crudo.length });
+    return json({ error: 'Firma no válida.' }, 401);
+  }
   let ev: any = null;
   try { ev = JSON.parse(crudo); } catch (_e) { /* inválido */ }
   const e = normalizarEvento(ev);
@@ -73,7 +77,8 @@ export async function manejarWebhook(req: Request, d: Dependencias): Promise<Res
     p_evento_id: e.eventoId, p_tipo: e.tipo, p_order_id: e.orderId, p_bold_payment_id: e.boldPaymentId,
     p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: ev,
   });
-  if (error) return json({ error: 'No se pudo procesar el evento.' }, 500);   // Bold reintenta
+  if (error) { console.error('[bold-webhook] error al aplicar el evento', e.tipo, e.orderId); return json({ error: 'No se pudo procesar el evento.' }, 500); }   // Bold reintenta
+  console.info('[bold-webhook] evento aplicado', e.tipo, e.orderId, data && data.resultado);
   // Con la bandera apagada la ruta no existe para el mundo exterior.
   if (data && data.resultado === 'bandera_apagada') return json({ error: 'No encontrado.' }, 404);
   return json({ resultado: data && data.resultado }, 200);
@@ -88,24 +93,47 @@ export async function manejarConciliacion(req: Request, d: Dependencias): Promis
 
   const { data: pendientes, error } = await d.clienteServicio.rpc('pagos_bold_por_conciliar', { p_minutos: 15 });
   if (error) return json({ error: 'No se pudo leer los pagos pendientes.' }, 500);
-  const llamar = d.fetch || fetch;
   const resumen: Record<string, string> = {};
-  for (const p of (pendientes || [])) {
-    try {
-      const r = await llamar('https://payments.api.bold.co/v2/payment-voucher/' + encodeURIComponent(p.order_id), {
-        headers: { Authorization: 'x-api-key ' + d.secretos.identidad, 'Content-Type': 'application/json' },
-      });
-      if (r.status !== 200) { resumen[p.order_id] = 'sin_voucher_' + r.status; continue; }
-      const e = eventoDeVoucher(p.order_id, await r.json());
-      if (!e) { resumen[p.order_id] = 'sin_cambio'; continue; }
-      const { data, error: err } = await d.clienteServicio.rpc('aplicar_evento_bold', {
-        p_evento_id: e.eventoId, p_tipo: e.tipo, p_order_id: e.orderId, p_bold_payment_id: e.boldPaymentId,
-        p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: { origen: 'conciliacion' },
-      });
-      resumen[p.order_id] = err ? 'error' : String(data && data.resultado);
-    } catch (_e) {
-      resumen[p.order_id] = 'error_red';
-    }
-  }
+  for (const p of (pendientes || [])) resumen[p.order_id] = await conciliarOrden(d, p.order_id);
   return json({ revisados: Object.keys(resumen).length, resumen }, 200);
+}
+
+// Pregunta a Bold por el estado real de una referencia y lo aplica como un evento propio (idempotente en la base de datos).
+async function conciliarOrden(d: Dependencias, orderId: string): Promise<string> {
+  const llamar = d.fetch || fetch;
+  try {
+    const r = await llamar('https://payments.api.bold.co/v2/payment-voucher/' + encodeURIComponent(orderId), {
+      headers: { Authorization: 'x-api-key ' + d.secretos.identidad, 'Content-Type': 'application/json' },
+    });
+    if (r.status !== 200) return 'sin_voucher_' + r.status;
+    const e = eventoDeVoucher(orderId, await r.json());
+    if (!e) return 'sin_cambio';
+    const { data, error: err } = await d.clienteServicio.rpc('aplicar_evento_bold', {
+      p_evento_id: e.eventoId, p_tipo: e.tipo, p_order_id: e.orderId, p_bold_payment_id: e.boldPaymentId,
+      p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: { origen: 'conciliacion' },
+    });
+    return err ? 'error' : String(data && data.resultado);
+  } catch (_e) {
+    return 'error_red';
+  }
+}
+
+// ------------------------------------------------------------------ Verificación del cliente: "ya pagué, ¿llegó?"
+// Con la sesión del cliente se leen las referencias pendientes de SU pedido y se le pregunta a Bold (con la llave del servidor).
+// El cliente no aporta ningún dato del pago: lo que se aplica sale de la respuesta de Bold, validada por la base de datos.
+export async function manejarVerificacion(req: Request, d: Dependencias): Promise<Response> {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CABECERAS_CORS });
+  const cors = CABECERAS_CORS;
+  if (req.method !== 'POST') return json({ error: 'Método no permitido.' }, 405, cors);
+  const autorizacion = req.headers.get('Authorization') || '';
+  if (!autorizacion.toLowerCase().startsWith('bearer ')) return json({ error: 'Inicia sesión para continuar.' }, 401, cors);
+  if (!d.secretos.identidad) return json({ error: 'El pago en línea todavía no está disponible.' }, 503, cors);
+  let pedido = '';
+  try { pedido = String((await req.json()).pedido_id || ''); } catch (_e) { /* cuerpo inválido */ }
+  if (!pedido) return json({ error: 'Falta el pedido.' }, 400, cors);
+  const { data, error } = await d.clienteUsuario(autorizacion).rpc('mis_pagos_bold_pendientes', { p_pedido: pedido });
+  if (error) return json({ error: String(error.message || 'No se pudo verificar el pago.') }, 400, cors);
+  const resumen: Record<string, string> = {};
+  for (const p of (data || [])) resumen[p.order_id] = await conciliarOrden(d, p.order_id);
+  return json({ revisados: Object.keys(resumen).length, resumen }, 200, cors);
 }

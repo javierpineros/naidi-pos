@@ -119,6 +119,13 @@ select is(public.entregar_pedido_web(pg_temp.id('p1'), (select codigo from publi
 select is((select medio_pago from public.ventas where id = (select venta_id from public.pedidos_web where id = pg_temp.id('p1'))), 'bold_online', 'la venta guarda el medio bold_online');
 select cmp_ok((select coalesce(sum(puntos), 0) from public.puntos_libro where cliente_id = '00000000-0000-0000-0000-0000000010c1'), '>=', 0::bigint, 'los puntos se acreditan con la venta pagada');
 
+-- El cliente solo ve las referencias pendientes de su propio pedido
+select pg_temp.como('00000000-0000-0000-0000-0000000010c1');
+select is(jsonb_array_length(public.mis_pagos_bold_pendientes(pg_temp.id('p1'))), 0, 'un pedido ya pagado no tiene referencias pendientes');
+select pg_temp.como('00000000-0000-0000-0000-0000000010c2');
+select is(jsonb_array_length(public.mis_pagos_bold_pendientes(pg_temp.id('p1'))), 0, 'otra cuenta no ve nada del pedido ajeno');
+reset role;
+
 -- Una anulación después de entregar requiere al dueño
 reset role;
 select is(pg_temp.evento('e9', 'VOID_APPROVED', (select v from ids where k = 'o2'), 4000) ->> 'resultado', 'anulado_requiere_revision', 'anular un pedido ya entregado queda para revisión del dueño');

@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { crearApi } from '../../src/pos/api.js';
 import { crearApiTienda } from '../../src/tienda/api.js';
 import { firmaWebhook, firmaIntegridad } from '../../supabase/functions/_shared/bold.ts';
-import { manejarCheckout, manejarWebhook, manejarConciliacion } from '../../supabase/functions/_shared/manejadores.ts';
+import { manejarCheckout, manejarWebhook, manejarConciliacion, manejarVerificacion } from '../../supabase/functions/_shared/manejadores.ts';
 
 function leerEntorno() {
   const salida = execSync('supabase status -o env', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
@@ -186,6 +186,38 @@ describe('pago en línea con Bold contra la base real', () => {
     const r = await manejarConciliacion(consulta('tok-local'), conBold);
     expect((await r.json()).resumen[c.checkout.orderId]).toBe('aprobado');
     expect((await miPedido(c.pedido.id)).pago_en_linea_estado).toBe('pagado');
+  });
+
+  it('el cliente verifica su pago sin webhook: se le pregunta a Bold y la base lo acredita; no puede verificar pedidos ajenos', async () => {
+    // Una segunda clienta, con su propio tope de pedidos abiertos
+    const otro = sesion();
+    const apiOtro = crearApiTienda(otro, { origen: () => 'http://localhost' });
+    const correoOtro = `otro.${sufijo}@integracion.test`;
+    await apiOtro.enviarCodigo(correoOtro);
+    await apiOtro.verificarCodigo(correoOtro, await codigoDelCorreo(correoOtro));
+    await apiOtro.consentir('datos', (await apiOtro.perfil()).privacidad_version, true);
+    const jwtOtro = (await otro.auth.getSession()).data.session.access_token;
+    const crear = async (api, token) => {
+      const p = await api.crearPedido({ idem: crypto.randomUUID(), lineas: [{ producto: 'latte', cantidad: 1 }], ventanaInicio: enMin(60), ventanaFin: enMin(90), pago: 'en_linea' });
+      const r = await manejarCheckout(new Request('https://x.test/bold-checkout', { method: 'POST', body: JSON.stringify({ pedido_id: p.id }), headers: { Authorization: 'Bearer ' + token } }), deps);
+      return { pedido: p, orderId: (await r.json()).orderId };
+    };
+    const verificar = (pedidoId, token, fetchBold) => manejarVerificacion(
+      new Request('https://x.test/bold-verificar', { method: 'POST', body: JSON.stringify({ pedido_id: pedidoId }), headers: { Authorization: 'Bearer ' + token } }), { ...deps, fetch: fetchBold });
+    const pendiente = async () => new Response(JSON.stringify({ payment_status: 'PROCESSING' }), { status: 200 });
+    const aprobado = async () => new Response(JSON.stringify({ payment_status: 'APPROVED', payment_id: 'bp-ver-' + sufijo + '-' + Math.random().toString(36).slice(2), amount: { total: 4000 } }), { status: 200 });
+    const estadoDe = async (api, id) => (await api.misPedidos()).find((x) => x.id === id).pago_en_linea_estado;
+
+    const propio = await crear(apiOtro, jwtOtro);
+    expect((await (await verificar(propio.pedido.id, jwtOtro, pendiente)).json()).resumen[propio.orderId]).toBe('sin_cambio');
+    expect(await estadoDe(apiOtro, propio.pedido.id)).toBe('pendiente');
+    expect((await (await verificar(propio.pedido.id, jwtOtro, aprobado)).json()).resumen[propio.orderId]).toBe('aprobado');
+    expect(await estadoDe(apiOtro, propio.pedido.id)).toBe('pagado');
+
+    // Otra cuenta no puede disparar la verificación del pedido de alguien más
+    const ajeno = await crear(apiOtro, jwtOtro);
+    expect((await (await verificar(ajeno.pedido.id, jwt, aprobado)).json()).revisados).toBe(0);
+    expect(await estadoDe(apiOtro, ajeno.pedido.id)).toBe('pendiente');
   });
 
   it('con la bandera apagada el webhook y el checkout no responden', async () => {

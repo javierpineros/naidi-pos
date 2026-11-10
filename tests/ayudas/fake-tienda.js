@@ -83,6 +83,12 @@ export function crearFakeTienda(opciones) {
       return { apiKey: 'identidad-test', orderId: 'NW' + p.numero + '-abc', amount: p.total_cop, currency: 'COP', integritySignature: 'f'.repeat(64),
         description: 'Pedido web #' + p.numero, redirectionUrl: 'https://naidi.test/tienda/' };
     },
+    async verificarPagoBold(id) {
+      red(); reg('verificarPagoBold', id); cliente();
+      const p = s.pedidos.find((x) => x.id === id);
+      if (s.boldAprobado && p && p.pago_en_linea_estado === 'pendiente') p.pago_en_linea_estado = 'pagado';   // lo que diría Bold en su consulta
+      return { revisados: 1 };
+    },
     async voyEnCamino(id) { red(); reg('voyEnCamino', id); const p = s.pedidos.find((x) => x.id === id); p.en_camino_en = '2026-11-10T16:00:00Z'; return copia(p); },
     async cancelarPedido(id) {
       red(); reg('cancelarPedido', id);

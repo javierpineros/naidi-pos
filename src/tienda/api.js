@@ -74,6 +74,17 @@ export function crearApiTienda(client, opciones) {
       }
       return res.data;
     },
+    // "Ya pagué": le pregunta a Bold (desde el servidor) por el estado real; la base de datos decide si lo acredita.
+    async verificarPagoBold(pedido) {
+      let res;
+      try {
+        res = await client.functions.invoke('bold-verificar', { body: { pedido_id: pedido } });
+      } catch (e) {
+        throw new ErrorRed();
+      }
+      if (res.error) throw new ErrorServidor('No pudimos verificar el pago todavía.');
+      return res.data;
+    },
     voyEnCamino: (pedido) => rpc('voy_en_camino', { p_pedido: pedido }),
     cancelarPedido: (pedido) => rpc('cancelar_mi_pedido_web', { p_pedido: pedido }),
   };
