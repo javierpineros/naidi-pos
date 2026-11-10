@@ -10,11 +10,16 @@
     "test": "vitest run",
     "catalogo:generar": "node scripts/generar-catalogo.js",
     "test:db": "supabase test db",
-    "test:todo": "pnpm test && pnpm test:db"
+    "test:integracion": "vitest run --config vitest.integracion.config.js",
+    "test:todo": "supabase db reset && pnpm test && pnpm test:db && pnpm test:integracion"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",
     "vite": "^6.3.5",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
+    "qrcode-generator": "^2.0.4"
   }
 }
