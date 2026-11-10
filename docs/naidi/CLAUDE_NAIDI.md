@@ -4,7 +4,7 @@ Este archivo se importa desde el `CLAUDE.md` del repositorio con `@docs/naidi/CL
 
 ## Reglas que prevalecen
 
-1. **Las reglas de `fulltack-base-template` mandan.** Antes de tocar código, lee el `CLAUDE.md` del repositorio y todo lo que el template defina sobre revisión y aprobación: plantilla de PR, protección de ramas, CI, convenciones de commits. Si algo de este archivo o del prompt contradice al template, gana el template; avísalo y no lo resuelvas por tu cuenta.
+1. **Stack: Supabase completo.** Postgres, Auth, RLS, Realtime y funciones del servidor; el front es estático (Vite, JavaScript sin framework pesado) y habla solo con Supabase. Sin NestJS, sin Prisma y sin auth propia. Las migraciones son SQL en `supabase/migrations/` y se prueban en local con el Supabase CLI (`supabase start`, `supabase db reset`). El proyecto no usa `fullstack-base-template`.
 2. **Nada se fusiona sin aprobación.** Una rama y un PR por hito. No hagas merge ni empujes a la rama principal. Espera la revisión de Javier.
 3. **Respeta el flujo de trabajo de Javier:** diagnóstico antes de cambiar; valida la sintaxis después de cada edición; pruebas de integración con jsdom para los flujos del front; agrupa las preguntas aclaratorias y hazlas antes de empezar a programar; un repositorio por proyecto.
 
