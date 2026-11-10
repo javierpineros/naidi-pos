@@ -9,17 +9,20 @@ select ('00000000-0000-0000-0000-00000000' || lpad(n::text, 4, '0'))::uuid, 'aut
 from unnest(array[3, 4, 5, 6, 7, 8, 9, 10, 202, 208]) n;
 -- 0003..0010 clientes de prueba; 00ca (202) cajero y 00d0 (208) dueño
 insert into public.perfiles (user_id, nombre)
-select ('00000000-0000-0000-0000-00000000' || lpad(n::text, 4, '0'))::uuid, 'Cliente ' || n from unnest(array[3, 4, 5, 6, 7, 8, 9, 10]) n;
+select ('00000000-0000-0000-0000-00000000' || lpad(n::text, 4, '0'))::uuid, 'Cliente ' || n from unnest(array[3, 4, 5, 6, 7, 8, 9, 10]) n
+on conflict (user_id) do update set nombre = excluded.nombre;
 insert into public.staff (user_id, rol, nombre) values
   ('00000000-0000-0000-0000-000000000202', 'cajero', 'Cajero Prueba'),
   ('00000000-0000-0000-0000-000000000208', 'dueno',  'Dueño Prueba');
+insert into private.staff_pin (user_id, pin_hash)
+values ('00000000-0000-0000-0000-000000000208', extensions.crypt('2468', extensions.gen_salt('bf', 4)));
 
 create temp table ids (k text primary key, v text);
 grant all on ids to public;
 create function pg_temp.id(p_k text) returns uuid language sql as $$ select v::uuid from ids where k = p_k $$;
 create function pg_temp.cl(n integer) returns text language sql as $$ select '00000000-0000-0000-0000-00000000' || lpad(n::text, 4, '0') $$;
 create function pg_temp.como(p_uid text) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true) $$;
+  select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated', 'aal', 'aal2')::text, true) $$;
 -- Fija un valor de regla saltando el trigger de versionado (solo para pruebas, como postgres).
 create function pg_temp.fijar_regla(p_clave text, p_valor jsonb) returns void language plpgsql as $$
 begin
@@ -39,8 +42,8 @@ exception when others then insert into r (k, s) values (p_k, sqlstate); end $$;
 select pg_temp.como('00000000-0000-0000-0000-000000000202');
 
 -- El valor por omisión de la regla (versión 2) es un porcentaje de la primera compra.
-select is(private.regla_vigente('bienvenida.regalo') ->> 'tipo', 'descuento_compra', 'regla inicial: porcentaje de la primera compra (provisional)');
-select is((select version from public.reglas_negocio where clave = 'bienvenida.regalo' and vigente_hasta is null), 2, 'la versión 1 quedó cerrada y rige la 2');
+select is(private.regla_vigente('bienvenida.regalo')::text, '{"tipo": "toppings_gratis", "cantidad": 1, "toppings": null}', 'regla inicial: 1 topping gratis en la primera compra');
+select is((select version from public.reglas_negocio where clave = 'bienvenida.regalo' and vigente_hasta is null), 3, 'las versiones anteriores quedaron cerradas y rige la 3');
 
 -- =============================================================================================
 -- 1. Regalo: 2 toppings gratis, cualquiera
@@ -116,7 +119,7 @@ select pg_temp.como('00000000-0000-0000-0000-000000000202');
 
 -- Anular devuelve el regalo y revierte los puntos
 select pg_temp.como('00000000-0000-0000-0000-000000000208');
-select is((public.anular_venta(pg_temp.id('v6'), 'prueba') ->> 'puntos_revertidos')::integer, 16, 'anular revierte los 16 puntos');
+select is((public.anular_venta(pg_temp.id('v6'), 'prueba', '2468') ->> 'puntos_revertidos')::integer, 16, 'anular revierte los 16 puntos');
 select is((select estado from public.vouchers where id = pg_temp.id('w6')), 'activo', 'y devuelve el regalo');
 select pg_temp.como('00000000-0000-0000-0000-000000000202');
 
@@ -186,7 +189,7 @@ select is((select sum(total_cop) from public.ventas where estado = 'pagada' and 
 
 -- Anular una venta de Rappi no toca puntos
 select pg_temp.como('00000000-0000-0000-0000-000000000208');
-select is((public.anular_venta((select (v::jsonb ->> 'venta_id')::uuid from ids where k = 'rappi1'), 'pedido duplicado en Rappi') ->> 'puntos_revertidos')::integer, 0, 'anular una venta de Rappi no revierte puntos');
+select is((public.anular_venta((select (v::jsonb ->> 'venta_id')::uuid from ids where k = 'rappi1'), 'pedido duplicado en Rappi', '2468') ->> 'puntos_revertidos')::integer, 0, 'anular una venta de Rappi no revierte puntos');
 select pg_temp.como('00000000-0000-0000-0000-000000000202');
 
 -- Permisos

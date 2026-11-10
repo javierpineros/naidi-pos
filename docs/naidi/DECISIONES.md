@@ -25,11 +25,17 @@
 
 - Ventas de Rappi en el POS (H3b): una por pedido, al momento, con el número de pedido de Rappi para no duplicarlas. Quedan pagadas con medio de pago "rappi", mismos precios del catálogo, sin cliente, sin puntos y sin QR posterior. El cierre de caja las separa de efectivo, datáfono y transferencia. La comisión de Rappi no se lleva por ahora (la conciliación con Rappi se hace fuera del POS).
 - Regalo de bienvenida flexible: toppings gratis (cantidad y lista opcional; se regalan primero los de más valor), porcentaje sobre toda la primera compra, o descuento en un bowl. Una regla inválida no bloquea la venta; solo no se otorga el regalo.
+- H4 (cuentas, check-in y PIN): el inicio de sesión de clientes es Google y correo con código de 6 dígitos (plantilla propia en `supabase/templates/codigo.html`; la plantilla por defecto de Supabase manda un enlace, no el código). Apple queda configurado y apagado. El perfil del cliente se crea solo al registrarse. El check-in exige haber aceptado el tratamiento de datos (Ley 1581, versión vigente en la regla `privacidad.version`), usa el token del QR de entrada (que el dueño rota con PIN) y vence a los 30 minutos; máximo 10 llegadas por cliente por día.
+- Seguridad del dueño: sin sesión con segundo factor (TOTP, aal2) no tiene permisos de dueño ni de personal. Las acciones sensibles (anular una venta pagada, reasignar cliente, cambiar reglas y banderas, rotar el token de entrada, registrar o desactivar personal) exigen además su PIN: 4 a 8 dígitos, cifrado, 5 intentos y bloqueo de 15 minutos. Un PIN incorrecto no lanza error sino que devuelve `{ok:false}`, para que el conteo de intentos y la auditoría queden guardados. Reasignar cliente solo aplica a ventas sin pagar; una venta pagada se anula y se registra de nuevo. Un descuento manual todavía no existe como función.
 - H3 (ventas y puntos), supuestos de trabajo ajustables: cancelar o anular una venta devuelve el premio o regalo que usó; una venta sin internet puede registrarse hasta 7 días después y no emite QR posterior; máximo 5 QR posteriores reclamados por cliente por día (hora de Bogotá); un cliente puede quedar con saldo negativo si anulan una venta cuyos puntos ya gastó.
 
 ## Pendientes
 
-- Elegir el regalo de bienvenida. Puede ser 1 o varios toppings gratis, o un porcentaje de la primera compra (la regla `bienvenida.regalo` admite ambos, más un descuento en un bowl). Hoy rige, provisional, 20% de la primera compra; el dueño lo cambia sin tocar código.
+- Credenciales de Google (client id y secret desde Google Cloud Console) para activar el inicio de sesión con Google; se pasan por variables de entorno, nunca al repositorio.
+- Texto de la política de privacidad y de los consentimientos (Ley 1581); el sistema ya versiona el consentimiento, falta el contenido legal.
+- Crear la cuenta del primer dueño (se hace por fuera del sistema, con la llave de servicio) y que active su verificación en dos pasos y su PIN.
+
+- Regalo de bienvenida (decidido: toppings gratis; falta confirmar si 1 o varios). Puede ser 1 o varios toppings gratis, o un porcentaje de la primera compra (la regla `bienvenida.regalo` admite ambos, más un descuento en un bowl). Decidido por Javier: por defecto, toppings gratis (hoy 1 topping, el de más valor, en la primera compra); el dueño cambia la cantidad o el tipo sin tocar código.
 - La anulación de una venta pagada exige hoy solo el rol de dueño; el PIN y el segundo factor se suman en H4.
 
 - Confirmar con Bold si el plan de Naidi incluye la API de pagos en línea y los montos mínimos y máximos por método (preguntas ya redactadas en `our-memories/docs/02-suscripciones-bold.md` §10). Verificar en la prueba real el nombre de la cabecera de firma y el esquema del webhook en pruebas.

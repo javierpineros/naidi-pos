@@ -14,16 +14,19 @@ insert into auth.users (id, aud, role, email) values
   ('00000000-0000-0000-0000-0000000000d0', 'authenticated', 'authenticated', 'dueno@prueba.test');
 insert into public.perfiles (user_id, nombre) values
   ('00000000-0000-0000-0000-0000000000c1', 'Cliente Uno'),
-  ('00000000-0000-0000-0000-0000000000c2', 'Cliente Dos');
+  ('00000000-0000-0000-0000-0000000000c2', 'Cliente Dos')
+on conflict (user_id) do update set nombre = excluded.nombre;
 insert into public.staff (user_id, rol, nombre) values
   ('00000000-0000-0000-0000-0000000000ca', 'cajero', 'Cajero Prueba'),
   ('00000000-0000-0000-0000-0000000000d0', 'dueno',  'Dueño Prueba');
+insert into private.staff_pin (user_id, pin_hash)
+values ('00000000-0000-0000-0000-0000000000d0', extensions.crypt('2468', extensions.gen_salt('bf', 4)));
 
 create temp table ids (k text primary key, v text);
 grant all on ids to public;
 create function pg_temp.id(p_k text) returns uuid language sql as $$ select v::uuid from ids where k = p_k $$;
 create function pg_temp.como(p_uid text) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true) $$;
+  select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated', 'aal', 'aal2')::text, true) $$;
 
 create temp table r (k text primary key, n bigint, s text);
 grant all on r to public;
@@ -142,14 +145,14 @@ select is((select string_agg(a_estado, '>' order by id) from public.venta_evento
 -- =============================================================================================
 -- 3. Anulación: solo el dueño; revierte los puntos con un movimiento contrario
 -- =============================================================================================
-select throws_ok(format($f$select public.anular_venta(%L, 'error de digitación')$f$, pg_temp.id('v2')), '42501', null, 'el cajero no anula una venta pagada');
+select throws_ok(format($f$select public.anular_venta(%L, 'error de digitación', '2468')$f$, pg_temp.id('v2')), '42501', null, 'el cajero no anula una venta pagada');
 select pg_temp.como('00000000-0000-0000-0000-0000000000d0');
-select throws_ok(format($f$select public.anular_venta(%L, '')$f$, pg_temp.id('v2')), 'P0001', null, 'anular exige motivo');
-select is((public.anular_venta(pg_temp.id('v2'), 'error de digitación') ->> 'puntos_revertidos')::integer, 36, 'el dueño anula y se revierten 36 puntos');
+select throws_ok(format($f$select public.anular_venta(%L, '', '2468')$f$, pg_temp.id('v2')), 'P0001', null, 'anular exige motivo');
+select is((public.anular_venta(pg_temp.id('v2'), 'error de digitación', '2468') ->> 'puntos_revertidos')::integer, 36, 'el dueño anula y se revierten 36 puntos');
 select is((select estado from public.ventas where id = pg_temp.id('v2')), 'anulada', 'venta anulada');
 select is((select puntos from public.puntos_libro where venta_id = pg_temp.id('v2') and tipo = 'anulacion'), -36, 'movimiento contrario en el libro');
 select is((select count(*) from public.puntos_libro where venta_id = pg_temp.id('v2')), 2::bigint, 'el libro conserva la suma original y la anulación');
-select throws_ok(format($f$select public.anular_venta(%L, 'otra vez')$f$, pg_temp.id('v2')), 'P0001', null, 'no se anula dos veces');
+select throws_ok(format($f$select public.anular_venta(%L, 'otra vez', '2468')$f$, pg_temp.id('v2')), 'P0001', null, 'no se anula dos veces');
 select is((select estado from public.vouchers where id = pg_temp.id('w_bien')), 'activo', 'anular devuelve el regalo');
 select is((select count(*) from public.auditoria where accion = 'anular_venta' and entidad_id = pg_temp.id('v2')::text), 1::bigint, 'la anulación queda en la auditoría');
 select pg_temp.como('00000000-0000-0000-0000-0000000000c1');
@@ -237,13 +240,13 @@ select public.agregar_linea(pg_temp.id('v6'), 'latte');
 select public.confirmar_venta(pg_temp.id('v6'));
 insert into ids select 'tok6', (public.pagar_venta(pg_temp.id('v6'), 'efectivo', 4000) ->> 'qr_token');
 select pg_temp.como('00000000-0000-0000-0000-0000000000d0');
-select public.anular_venta(pg_temp.id('v6'), 'se devolvió el pedido');
+select public.anular_venta(pg_temp.id('v6'), 'se devolvió el pedido', '2468');
 select pg_temp.como('00000000-0000-0000-0000-0000000000c1');
 select throws_ok(format($f$select public.reclamar_qr_posventa(%L)$f$, (select v from ids where k = 'tok6')), 'P0001', null, 'anular la venta invalida su QR');
 
 -- Anular una venta cuyos puntos ya se reclamaron por QR: se revierten al cliente que los reclamó
 select pg_temp.como('00000000-0000-0000-0000-0000000000d0');
-select is((public.anular_venta(pg_temp.id('v4'), 'error de cobro') ->> 'puntos_revertidos')::integer, 2, 'anular revierte los puntos reclamados por QR');
+select is((public.anular_venta(pg_temp.id('v4'), 'error de cobro', '2468') ->> 'puntos_revertidos')::integer, 2, 'anular revierte los puntos reclamados por QR');
 select pg_temp.como('00000000-0000-0000-0000-0000000000c2');
 select is(public.mi_saldo(), 0, 'el cliente que reclamó queda en 0');
 
@@ -296,7 +299,7 @@ select pg_temp.como('00000000-0000-0000-0000-0000000000c1');
 set local role authenticated;
 select pg_temp.intentar('cli_crear',    $$select public.crear_venta(gen_random_uuid())$$);
 select pg_temp.intentar('cli_pagar',    format($f$select public.pagar_venta(%L, 'efectivo', 99999)$f$, pg_temp.id('v1')));
-select pg_temp.intentar('cli_anular',   format($f$select public.anular_venta(%L, 'x')$f$, pg_temp.id('v3')));
+select pg_temp.intentar('cli_anular',   format($f$select public.anular_venta(%L, 'x', '2468')$f$, pg_temp.id('v3')));
 select pg_temp.intentar('cli_offline',  $$select public.registrar_venta_offline(gen_random_uuid(), now(), '[{"producto":"latte"}]'::jsonb, 'transferencia')$$);
 select pg_temp.intentar('cli_vouchers_de', $$select public.vouchers_activos_de('00000000-0000-0000-0000-0000000000c1')$$);
 select pg_temp.contar('cli_ventas',     'select count(*) from public.ventas');
