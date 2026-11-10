@@ -92,12 +92,25 @@ describe('POS: pedidos web', () => {
     expect(texto('.modal-caja .error')).toContain('código no coincide');
     await escribir('[data-campo="codigo-pedido"]', 'k7p2');
     await click('[data-accion="confirmar-entrega"]');
+    expect(texto('[data-campo="entrega-ok"]')).toContain('Pedido #7 entregado');
+    expect(texto('[data-campo="cambio-final"]')).toBe('Devuelve $3.600');
+    await click('[data-accion="cerrar-entrega"]');
     expect($('.modal-caja')).toBeNull();
-    expect(texto('.avisos')).toContain('Pedido #7 entregado. Cambio: $3.600. Puntos: 26.');
     expect(texto('[data-campo="estado"]')).toBe('Entregado');
     expect($('[data-pestana="pedidos"]').textContent).toBe('Pedidos web');
     const llamada = api._s.llamadas.filter((l) => l[0] === 'entregarPedidoWeb').pop()[1];
     expect(llamada).toMatchObject({ id: 'pw-1', codigo: 'k7p2', medio: 'efectivo', efectivo: 30000 });
+  });
+
+  it('muestra el cambio en vivo mientras se digita el efectivo', async () => {
+    const api = crearFakeApi({ pedidos: [pedido()] });
+    await entrarComoPersonal(api);
+    await click('[data-pestana="pedidos"]');
+    await click('[data-accion="entregar"]');
+    await escribir('[data-campo="efectivo-pedido"]', '20000');
+    expect(texto('[data-campo="cambio-pedido"]')).toBe('Faltan $6.400');
+    await escribir('[data-campo="efectivo-pedido"]', '50000');
+    expect(texto('[data-campo="cambio-pedido"]')).toBe('Cambio: $23.600');
   });
 
   it('exige que el efectivo alcance y el código de 4 caracteres antes de llamar al servidor', async () => {

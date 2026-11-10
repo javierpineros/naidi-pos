@@ -132,6 +132,14 @@ export function crearVistaPedidos(ctx) {
     const codigo = h('input', { type: 'text', maxlength: '4', autocomplete: 'off', autocapitalize: 'characters', 'data-campo': 'codigo-pedido', 'aria-label': 'Código del cliente' });
     const recibido = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', 'data-campo': 'efectivo-pedido', 'aria-label': 'Efectivo recibido' });
     const error = h('p', { class: 'error', role: 'alert' });
+    // Cambio en vivo: mientras se digita el efectivo se ve cuánto devolver (o cuánto falta).
+    const cambioEl = h('p', { class: 'cambio', 'data-campo': 'cambio-pedido', 'aria-live': 'polite' });
+    function pintarCambio() {
+      const v = Number(String(recibido.value).replace(/\D/g, ''));
+      cambioEl.textContent = !v ? '' : v >= p.total_cop ? 'Cambio: ' + fmtCop(v - p.total_cop) : 'Faltan ' + fmtCop(p.total_cop - v);
+      cambioEl.classList.toggle('falta', !!v && v < p.total_cop);
+    }
+    recibido.addEventListener('input', pintarCambio);
     const zonaPago = h('div', { class: 'pago-pedido' });
     const confirmarBtn = h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'confirmar-entrega' }, 'Entregar y cobrar');
     let ocupado = false;
@@ -143,7 +151,8 @@ export function crearVistaPedidos(ctx) {
         h('p', null, 'Total a cobrar ', h('strong', { class: 'mono' }, fmtCop(p.total_cop))),
         h('div', { class: 'medios' }, ['efectivo', 'datafono_bold', 'transferencia'].map((k) =>
           h('button', { type: 'button', class: 'chip' + (medio === k ? ' activo' : ''), 'data-medio': k, onclick: () => { medio = k; pintarPago(); } }, MEDIOS[k]))),
-        medio === 'efectivo' ? h('label', null, 'Efectivo recibido', recibido) : null);
+        medio === 'efectivo' ? [h('label', null, 'Efectivo recibido', recibido), cambioEl] : null);
+      pintarCambio();
     }
 
     async function enviar() {
@@ -160,9 +169,12 @@ export function crearVistaPedidos(ctx) {
       confirmarBtn.disabled = true;
       try {
         const r = await ctx.api.entregarPedidoWeb(p.id, cod, enLinea ? null : medio, efectivo);
-        m.cerrar();
-        const extra = r.cambio_cop ? ' Cambio: ' + fmtCop(r.cambio_cop) + '.' : '';
-        ctx.avisar('Pedido #' + p.numero + ' entregado.' + extra + (r.puntos_acreditados ? ' Puntos: ' + r.puntos_acreditados + '.' : ''), 'ok');
+        // Confirmación fija (no un aviso que desaparece): el vendedor ve el cambio a devolver antes de cerrar.
+        vaciar(m.cuerpo).append(
+          h('p', { class: 'ok', role: 'status', 'data-campo': 'entrega-ok' }, 'Pedido #' + p.numero + ' entregado y cobrado.'),
+          r.cambio_cop ? h('p', { class: 'cambio-grande', 'data-campo': 'cambio-final' }, 'Devuelve ', h('strong', { class: 'mono' }, fmtCop(r.cambio_cop))) : null,
+          r.puntos_acreditados ? h('p', { class: 'pequeno' }, 'Puntos acreditados al cliente: ' + r.puntos_acreditados) : null,
+          h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'cerrar-entrega', onclick: () => m.cerrar() }, 'Listo')));
         await refrescar();
       } catch (e) {
         error.textContent = e.name === 'ErrorRed' ? 'Sin conexión. Inténtalo de nuevo (no se duplica).' : e.message;
