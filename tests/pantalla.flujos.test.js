@@ -144,6 +144,31 @@ describe('pantalla del iPad: qué muestra', () => {
     expect(m.raiz.querySelector('svg')).toBeNull();
   });
 
+  it('un pedido largo avisa que se desliza y un total de seis cifras no se parte', async () => {
+    const datos = ventaConfirmada();
+    datos.venta.lineas = Array.from({ length: 10 }, (_, i) => ({ nombre: 'Bowl ' + (i + 1), tamano: 'Grande', cantidad: 1, toppings: [], precio_unitario_cop: 20000, descuento_cop: 0, total_cop: 20000 }));
+    datos.venta.total_cop = 206900;
+    m = montar({ llave: LLAVE, respuestas: [datos] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelectorAll('.linea')).toHaveLength(10);
+    expect(m.raiz.querySelector('.pista').textContent).toContain('10 productos');
+    expect(m.raiz.querySelector('.total').textContent).toBe('$206.900');
+    expect(m.raiz.querySelector('.total').className).not.toContain('largo');
+    datos.venta.total_cop = 1206900;
+    m = montar({ llave: LLAVE, respuestas: [datos] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('.total').className).toContain('largo');
+  });
+
+  it('un pedido corto no muestra la pista de deslizar', async () => {
+    m = montar({ llave: LLAVE, respuestas: [ventaConfirmada()] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('.pista')).toBeNull();
+  });
+
   it('si no hay destino de transferencia configurado no muestra una línea vacía', async () => {
     const datos = ventaConfirmada();
     datos.transferencia = { tipo: 'bre-b', valor: '' };

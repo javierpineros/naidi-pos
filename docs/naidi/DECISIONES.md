@@ -35,7 +35,6 @@
 
 - `/cuenta` (H7) debe leer `#entrada=<token>` del QR de entrada de la pantalla y llamar a `hacer_checkin`.
 - El panel del dueño (H9) debe tener la pantalla para emitir (mostrar la llave una vez, como enlace de activación `/pantalla/#llave=...`), listar y revocar pantallas; hoy existen las funciones `emitir_llave_dispositivo`, `listar_dispositivos` y `revocar_dispositivo`.
-- Verificar `/pantalla` en el iPad real (Safari 12.1.2) y registrar el resultado; la prueba automática solo cubre sintaxis, APIs y CSS.
 - El iPad se apaga solo: configurar Ajustes > Pantalla y brillo > Bloqueo automático en "Nunca" (o usar Acceso guiado) para la pantalla del mostrador.
 - La cuenta del cliente (`/cuenta`) debe leer el QR posterior desde `#qr=` y reclamarlo (H7); hoy el POS ya lo genera.
 - El POS carga las tipografías de Google Fonts; sin internet usa las del sistema hasta que el navegador las tenga guardadas.

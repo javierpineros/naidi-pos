@@ -108,6 +108,14 @@ describe('la pantalla del iPad se construye para Safari 12', () => {
     expect(problemas).toEqual([]);
   });
 
+  it('en vertical el texto del reposo no crece (si no, empuja el QR al borde: se vio en el iPad real)', () => {
+    const fuente = readFileSync(join(RAIZ, 'src', 'pantalla', 'pantalla.css'), 'utf8');
+    const vertical = fuente.slice(fuente.indexOf('@media (orientation: portrait)'));
+    const regla = /\.reposo-texto\s*\{([^}]*)\}/.exec(vertical);
+    expect(regla).not.toBeNull();
+    expect(regla[1]).toMatch(/(^|[;\s])flex:\s*none/);
+  });
+
   it('la página se carga como módulo (Safari 11.1 o más) y no depende de Google Fonts para funcionar', () => {
     expect(html).toMatch(/<script[^>]+type="module"/);
     expect(html).toContain('name="robots" content="noindex"');

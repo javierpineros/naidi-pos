@@ -54,3 +54,21 @@ La prueba automática `tests/pantalla.safari12.test.js` construye el proyecto y 
 2. En el iPad, abre `https://<dominio>/pantalla/#llave=<llave>`. La llave se guarda y desaparece de la barra de direcciones.
 3. Ajustes > Pantalla y brillo > Bloqueo automático > Nunca, y deja Safari abierto en la pantalla (o usa Acceso guiado).
 4. Si se pierde el iPad, el dueño revoca la llave: la pantalla se apaga en la siguiente consulta.
+
+## Resultado de `/pantalla` en el iPad real (2026-11-10)
+
+Probada en el iPad mini 2 (iOS 12.5.8, Safari 12.1.2) por un túnel HTTPS temporal hacia el Supabase local, con una llave emitida por el flujo real (dueño con PIN y segundo factor).
+
+| Prueba | Resultado |
+| --- | --- |
+| Activación con `/pantalla/#llave=...` y QR de entrada | Bien; la llave desaparece de la barra de direcciones |
+| Venta confirmada: líneas, total y formas de pago | Bien |
+| Pedido de 10 líneas | Bien: la lista se desliza y el panel del total queda fijo |
+| Pagada: "¡Pagado! Gracias" y regreso al QR | Bien |
+| Llave revocada: "Esta pantalla está desactivada" | Bien |
+| Horizontal | Bien |
+| Vertical | Defecto: el texto del reposo crecía y empujaba el QR al borde, con un hueco grande entre ambos. Corregido (`flex: none` en vertical) y confirmado en el iPad |
+
+Defectos hallados y corregidos durante la prueba: un total de seis cifras ($206.900) se partía en dos renglones; ahora no se parte, y de siete cifras baja de tamaño. Se agregó la pista "N productos. Desliza para verlos todos." desde 7 líneas.
+
+Para repetir la prueba: `scripts/pantalla-prueba.mjs` (`llave`, `confirmar [n]`, `pagar`, `qr`, `revocar`), solo contra el Supabase local.
