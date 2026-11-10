@@ -23,11 +23,13 @@
   - Javier tiene cuenta de Bold y pedirá las llaves. Javier ya probó la integración en `our-memories` y confirmó que, al configurar las llaves de pruebas, Bold pregunta si se quieren usar webhooks (es decir, el ambiente de pruebas sí admite webhooks).
 - Supuestos de trabajo adoptados (ajustables desde la tabla de reglas): los cafés y el litro suman con la misma regla; los puntos no vencen en la Fase 1; el voucher de canje dura 45 días; el PIN es solo del dueño; el Excel actual no se migra y se empieza desde cero.
 
-- H3 (ventas y puntos), supuestos de trabajo ajustables: el regalo de bienvenida es un descuento de 20% sobre un bowl de la primera compra (provisional); cancelar o anular una venta devuelve el premio o regalo que usó; una venta sin internet puede registrarse hasta 7 días después y no emite QR posterior; máximo 5 QR posteriores reclamados por cliente por día (hora de Bogotá); un cliente puede quedar con saldo negativo si anulan una venta cuyos puntos ya gastó.
+- Ventas de Rappi en el POS (H3b): una por pedido, al momento, con el número de pedido de Rappi para no duplicarlas. Quedan pagadas con medio de pago "rappi", mismos precios del catálogo, sin cliente, sin puntos y sin QR posterior. El cierre de caja las separa de efectivo, datáfono y transferencia. La comisión de Rappi no se lleva por ahora (la conciliación con Rappi se hace fuera del POS).
+- Regalo de bienvenida flexible: toppings gratis (cantidad y lista opcional; se regalan primero los de más valor), porcentaje sobre toda la primera compra, o descuento en un bowl. Una regla inválida no bloquea la venta; solo no se otorga el regalo.
+- H3 (ventas y puntos), supuestos de trabajo ajustables: cancelar o anular una venta devuelve el premio o regalo que usó; una venta sin internet puede registrarse hasta 7 días después y no emite QR posterior; máximo 5 QR posteriores reclamados por cliente por día (hora de Bogotá); un cliente puede quedar con saldo negativo si anulan una venta cuyos puntos ya gastó.
 
 ## Pendientes
 
-- Definir el regalo de bienvenida (hoy provisional: 20% de descuento en un bowl; regla `bienvenida.regalo`).
+- Elegir el regalo de bienvenida. Puede ser 1 o varios toppings gratis, o un porcentaje de la primera compra (la regla `bienvenida.regalo` admite ambos, más un descuento en un bowl). Hoy rige, provisional, 20% de la primera compra; el dueño lo cambia sin tocar código.
 - La anulación de una venta pagada exige hoy solo el rol de dueño; el PIN y el segundo factor se suman en H4.
 
 - Confirmar con Bold si el plan de Naidi incluye la API de pagos en línea y los montos mínimos y máximos por método (preguntas ya redactadas en `our-memories/docs/02-suscripciones-bold.md` §10). Verificar en la prueba real el nombre de la cabecera de firma y el esquema del webhook en pruebas.

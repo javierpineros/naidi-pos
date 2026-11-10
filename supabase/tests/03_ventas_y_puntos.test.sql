@@ -34,6 +34,13 @@ create function pg_temp.intentar(p_k text, p_q text) returns void language plpgs
 begin execute p_q; insert into r (k, s) values (p_k, 'ok');
 exception when others then insert into r (k, s) values (p_k, sqlstate); end $$;
 
+-- Esta prueba cubre el regalo como descuento en un bowl (los otros formatos van en 04_regalo_y_rappi).
+-- Se fija la regla directamente (solo posible aquí, como postgres, saltando el trigger de versionado).
+alter table public.reglas_negocio disable trigger reglas_solo_cerrar;
+update public.reglas_negocio set valor = '{"tipo":"descuento_linea","descuento_pct":20,"tamanos":["mini","pequeno","mediano","grande"]}'::jsonb
+ where clave = 'bienvenida.regalo' and vigente_hasta is null;
+alter table public.reglas_negocio enable trigger reglas_solo_cerrar;
+
 -- =============================================================================================
 -- 1. Venta con cliente: armado, regalo de bienvenida, confirmación y cancelación
 -- =============================================================================================
