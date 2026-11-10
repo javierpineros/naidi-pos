@@ -14,7 +14,7 @@ Repositorio: https://github.com/javierpineros/naidi-pos (un repositorio por proy
 - Supabase completo (Postgres, Auth, RLS, Realtime, funciones del servidor). Front estático con Vite; sin NestJS ni Prisma.
 - Requiere Docker Desktop (motor WSL2 activo) y Supabase CLI. Desde la raíz: `supabase start`, `supabase status`, `supabase db reset`, `supabase stop`.
 - `supabase/migrations/` — esquema versionado en SQL. Studio local: http://127.0.0.1:54323.
-- Front: `pnpm install`, `pnpm dev`, `pnpm build` (target Safari 12). Pruebas: `pnpm test` (Vitest + jsdom) y `pnpm test:db` (pgTAP en `supabase/tests/`, requiere `supabase start`).
+- Front: `pnpm install`, `pnpm dev`, `pnpm build` (target Safari 12). Pruebas: `pnpm test` (Vitest + jsdom) y `pnpm test:db` (pgTAP en `supabase/tests/`, requiere `supabase start`). `pnpm test:integracion` prueba el POS contra la base local con sesiones reales y `scripts/prueba-concurrencia.sh` lanza sesiones simultáneas; ambas dejan filas en la base local, y las pruebas pgTAP esperan una base limpia, así que antes corre `supabase db reset` (`pnpm test:todo` ya lo hace).
 - Variables en `.env.local` (ver `.env.example`); la `service_role` nunca va en el front ni en el repo.
 - El repo no usa `fullstack-base-template`.
 

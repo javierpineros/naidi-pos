@@ -1,0 +1,161 @@
+/* POS de Naidi. Identidad tomada de referencia/index.html: púrpura #59358C, verde #95C23D, crema.
+   Títulos en Fraunces (la fuente Bohemian Soul de la marca va embebida solo en el catálogo web). */
+:root {
+  --bg: #fff7ec;
+  --surface: #ffffff;
+  --surface-2: #fff1de;
+  --text: #59358c;
+  --text-muted: #7a6a80;
+  --border: #eee1cf;
+  --accent: #95c23d;
+  --brand: #59358c;
+  --error: #b3261e;
+  --sombra: rgba(89, 53, 140, 0.14);
+  --radio: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #150826;
+    --surface: #241238;
+    --surface-2: #1d0e2e;
+    --text: #fbf3e7;
+    --text-muted: #b7a6c2;
+    --border: #3a2650;
+    --error: #ff8a80;
+    --sombra: rgba(0, 0, 0, 0.4);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: Montserrat, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.4;
+}
+h1, h2, h3, .titulo, .marca-pos { font-family: Fraunces, Georgia, serif; margin: 0 0 8px; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.05rem; margin-top: 16px; }
+.mono { font-family: 'Space Mono', ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.pequeno { font-size: 0.8rem; color: var(--text-muted); }
+.error { color: var(--error); min-height: 1.2em; margin: 6px 0; }
+.ok { color: #3a7d0a; }
+.vacio { color: var(--text-muted); }
+[hidden] { display: none !important; }
+
+button, input, select { font: inherit; color: inherit; }
+input, select {
+  width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+}
+label { display: block; margin: 10px 0; font-weight: 600; font-size: 0.9rem; }
+label input, label select { margin-top: 4px; font-weight: 400; }
+
+.btn {
+  min-height: 44px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); cursor: pointer; font-weight: 600;
+}
+.btn:hover:not(:disabled) { border-color: var(--brand); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primario { background: var(--brand); color: #fff; border-color: var(--brand); }
+.btn-primario:hover:not(:disabled) { filter: brightness(1.1); }
+.btn.grande { min-height: 52px; width: 100%; margin-top: 10px; font-size: 1.05rem; }
+.btn-icono { width: 44px; height: 44px; border: 0; background: transparent; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+
+/* Armazón */
+.cabecera {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px;
+  background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5;
+}
+.marca-pos { font-size: 1.3rem; margin: 0; }
+.relleno { flex: 1; }
+.pastilla { padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+.pastilla.en-linea { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.pastilla.sin-conexion { background: color-mix(in srgb, var(--error) 22%, transparent); color: var(--error); }
+.pastilla.pendiente { background: var(--surface-2); border: 1px solid var(--border); }
+.pestanas { display: flex; gap: 4px; padding: 8px 10px; overflow-x: auto; background: var(--bg); }
+.pestana {
+  flex: 0 0 auto; min-height: 44px; padding: 8px 18px; border: 0; border-radius: 999px; background: transparent;
+  cursor: pointer; font-weight: 700; color: var(--text-muted);
+}
+.pestana.activa { background: var(--brand); color: #fff; }
+.principal { padding: 12px 14px 40px; max-width: 1200px; margin: 0 auto; }
+.barra-vista { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.barra-vista h2 { flex: 1; margin: 0; }
+
+.avisos { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 30; display: grid; gap: 8px; pointer-events: none; }
+.aviso-flotante { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--brand); color: #fff; box-shadow: 0 6px 20px var(--sombra); }
+.aviso-flotante.error { background: var(--error); }
+.aviso { padding: 12px; margin: 12px 0; border-radius: var(--radio); background: var(--surface-2); border: 1px solid var(--border); }
+
+/* Acceso */
+.acceso { max-width: 420px; margin: 8vh auto; padding: 24px; background: var(--surface); border-radius: var(--radio); box-shadow: 0 10px 30px var(--sombra); }
+.qr-mfa { display: block; width: 200px; height: 200px; margin: 8px auto; background: #fff; }
+
+/* Lista de espera */
+.espera-lista { display: grid; gap: 10px; }
+.espera-item {
+  display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radio);
+}
+.espera-item.alerta { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); animation: latido 1.6s ease-in-out infinite; }
+@keyframes latido { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .espera-item.alerta { animation: none; } }
+.foto { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; background: var(--surface-2); }
+.foto.inicial { display: grid; place-items: center; font-weight: 800; font-size: 1.4rem; background: var(--brand); color: #fff; }
+.espera-datos { display: grid; gap: 2px; min-width: 0; }
+.espera-acciones { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.marcas { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.marca { padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: var(--surface-2); border: 1px solid var(--border); }
+.marca.nuevo, .marca.regalo { background: var(--accent); color: #1c2a05; border-color: var(--accent); }
+.marca.premio { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+/* Venta */
+.vista-venta, .vista-rappi { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .vista-venta, .vista-rappi { grid-template-columns: 1.4fr 1fr; align-items: start; } .carrito { position: sticky; top: 130px; } }
+.tarjetas { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.tarjeta { display: grid; gap: 4px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radio); text-align: left; }
+.tarjeta.boton { cursor: pointer; }
+.tarjeta small { color: var(--text-muted); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.chip {
+  min-height: 40px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  cursor: pointer; font-size: 0.85rem; font-weight: 600;
+}
+.chip.activo { background: var(--brand); color: #fff; border-color: var(--brand); }
+.carrito { padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radio); }
+.cliente { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.cliente select { width: auto; flex: 1; min-width: 140px; }
+.lineas { list-style: none; margin: 0; padding: 0; }
+.lineas li { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.lineas small { display: block; color: var(--text-muted); }
+.lineas .descuento, .totales .descuento { color: #3a7d0a; }
+.totales p { display: flex; justify-content: space-between; margin: 4px 0; }
+.totales .total { font-size: 1.4rem; font-weight: 800; }
+.premio { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px; margin: 6px 0; border: 1px dashed var(--accent); border-radius: 12px; }
+.premio span { flex: 1; min-width: 160px; font-weight: 600; }
+.premio select { width: auto; max-width: 220px; }
+.pago { margin-top: 12px; padding-top: 8px; border-top: 2px solid var(--border); }
+.acciones { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 12px; }
+.listo { text-align: center; }
+.qr-posventa { max-width: 260px; margin: 12px auto; }
+.qr-posventa svg { width: 100%; height: auto; background: #fff; padding: 8px; border-radius: 12px; }
+
+/* Selector de producto y ventanas */
+.modal-fondo { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 12px; background: rgba(21, 8, 38, 0.6); }
+.modal-caja { width: min(640px, 100%); max-height: 92vh; overflow: auto; background: var(--surface); border-radius: var(--radio); padding: 16px; }
+.modal-cabeza { display: flex; align-items: center; justify-content: space-between; }
+.modal-cabeza h2 { margin: 0; }
+.cantidad { display: flex; align-items: center; gap: 12px; margin: 12px 0; }
+
+/* Tablas */
+.tabla { width: 100%; border-collapse: collapse; margin: 8px 0; background: var(--surface); border-radius: 12px; overflow: hidden; }
+.tabla th, .tabla td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.tabla .num { text-align: right; }
+.reporte { margin-bottom: 16px; overflow-x: auto; }
+
+@media (max-width: 560px) {
+  .espera-item { grid-template-columns: 48px 1fr; }
+  .espera-acciones { grid-column: 1 / -1; justify-content: stretch; }
+  .espera-acciones .btn { flex: 1; }
+}
