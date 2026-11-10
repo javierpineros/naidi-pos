@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "catalogo:generar": "node scripts/generar-catalogo.js",
     "test:db": "supabase test db",
     "test:todo": "pnpm test && pnpm test:db"
   },
