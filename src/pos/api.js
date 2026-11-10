@@ -88,6 +88,10 @@ export function crearApi(client) {
       return filas && filas[0] ? filas[0].valor : null;
     },
 
+    // ---- Reportes del cliente ("esto no es lo que pedí")
+    reportesAbiertos: () => rpc('reportes_abiertos'),
+    resolverReporte: (id, nota) => rpc('resolver_reporte', { p_id: id, p_nota: nota || null }),
+
     // ---- Lista de espera
     listaEspera: () => rpc('lista_espera'),
     marcarAlertaVista: (checkin) => rpc('marcar_alerta_vista', { p_checkin: checkin }),

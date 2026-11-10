@@ -26,3 +26,17 @@ export const MEDIOS = {
   rappi: 'Rappi',
   bold_online: 'Pago en línea',
 };
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+// Fecha corta en Bogotá: "12 dic" (con el año si no es el actual).
+export function fechaCorta(iso, ahora) {
+  if (!iso) return '';
+  const f = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).split('-');
+  const [a, m, d] = f(new Date(iso));
+  const [aHoy] = f(ahora || new Date());
+  return Number(d) + ' ' + MESES[Number(m) - 1] + (a === aHoy ? '' : ' ' + a);
+}
+
+// Tamaños con su nombre para mostrar (el servidor guarda la clave).
+export const TAMANOS = { mini: 'Mini', pequeno: 'Pequeño', mediano: 'Mediano', grande: 'Grande' };

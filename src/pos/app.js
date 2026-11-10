@@ -7,6 +7,7 @@ import { crearVistaVenta } from './ui/venta.js';
 import { crearVistaRappi } from './ui/rappi.js';
 import { crearVistaCaja } from './ui/caja.js';
 import { crearVistaReportes } from './ui/reportes.js';
+import { crearReportesCliente } from './ui/reportes-cliente.js';
 
 export function crearPos(cfg) {
   const { raiz, api, cola, sonido } = cfg;
@@ -25,6 +26,7 @@ export function crearPos(cfg) {
   const nav = h('nav', { class: 'pestanas', 'aria-label': 'Secciones' });
   const principal = h('main', { class: 'principal' });
   let cat = null;
+  let reportesCliente = null;
 
   const ctx = {
     api, cola, sonido,
@@ -146,12 +148,13 @@ export function crearPos(cfg) {
     for (const v of Object.values(vistas)) principal.append(v.el);
     // Al abrir el turno se pide activar el sonido: los navegadores lo bloquean hasta que alguien toca la pantalla.
     pintarCabecera();
-    vaciar(raiz).append(cabecera, nav, avisos, principal);
+    reportesCliente = crearReportesCliente(ctx);
+    vaciar(raiz).append(cabecera, nav, avisos, reportesCliente.el, principal);
     ctx.irA('espera');
 
-    await Promise.all([vistas.espera.refrescar(), actualizarPendientes()]);
+    await Promise.all([vistas.espera.refrescar(), reportesCliente.refrescar(), actualizarPendientes()]);
     try { estado.desuscribir = api.suscribirEspera(() => vistas.espera.refrescar()); } catch (e) { estado.desuscribir = null; }
-    estado.temporizadores.push(cadaTanto(() => vistas.espera.refrescar(), intervalos.espera));
+    estado.temporizadores.push(cadaTanto(() => { vistas.espera.refrescar(); reportesCliente.refrescar(); }, intervalos.espera));
     estado.temporizadores.push(cadaTanto(() => sincronizarCola(), intervalos.cola));
     if (estado.pendientes && enLinea()) sincronizarCola();
   }
@@ -168,5 +171,5 @@ export function crearPos(cfg) {
     window.addEventListener('offline', () => { estado.conectado = false; pintarCabecera(); });
   }
 
-  return { iniciar, ctx, estado, sincronizarCola, vistas };
+  return { iniciar, ctx, estado, sincronizarCola, vistas, get reportes() { return reportesCliente; } };
 }
