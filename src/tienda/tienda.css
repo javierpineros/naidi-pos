@@ -1,0 +1,104 @@
+/* Tienda web (celular). Identidad de referencia/index.html: púrpura #59358C, verde #95C23D, crema.
+   Títulos en Fraunces (alternativa de Bohemian Soul), texto en Montserrat, precios y códigos en Space Mono. */
+:root {
+  --bg: #fff7ec;
+  --surface: #ffffff;
+  --text: #3b2561;
+  --muted: #7a6a80;
+  --border: #eee1cf;
+  --brand: #59358c;
+  --accent: #95c23d;
+  --accent-oscuro: #3a7d0a;
+  --error: #b3261e;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: Montserrat, system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.4; }
+h1, h2, h3 { font-family: Fraunces, Georgia, serif; color: var(--brand); margin: 0 0 10px; }
+h1 { font-size: 1.9rem; }
+h2 { font-size: 1.35rem; margin-top: 18px; }
+h3 { font-size: 1.05rem; margin: 12px 0 6px; }
+p { margin: 0 0 10px; }
+ul { list-style: none; margin: 0; padding: 0; }
+a { color: var(--brand); }
+[hidden] { display: none !important; }
+.mono { font-family: 'Space Mono', ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.pequeno { font-size: 0.85rem; color: var(--muted); }
+.ok { color: var(--accent-oscuro); font-weight: 600; }
+.error { color: var(--error); min-height: 1.2em; margin: 6px 0; }
+.vacio, .cargando { color: var(--muted); padding: 24px 16px; }
+
+button, input, textarea, select { font: inherit; color: inherit; }
+input[type=text], input[type=email], textarea, select {
+  width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px;
+}
+label { display: block; margin: 12px 0; font-weight: 600; font-size: 0.9rem; }
+.casilla { display: flex; align-items: flex-start; font-weight: 400; }
+.casilla input { margin: 3px 10px 0 0; width: 20px; height: 20px; flex: none; }
+
+.btn { min-height: 44px; padding: 10px 18px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); cursor: pointer; font-weight: 600; }
+.btn-primario { background: var(--brand); color: #fff; border-color: var(--brand); }
+.btn-texto { background: none; border: none; color: var(--brand); text-decoration: underline; min-height: 44px; cursor: pointer; padding: 0 10px; }
+.btn-icono { background: none; border: none; font-size: 1.6rem; line-height: 1; width: 44px; height: 44px; cursor: pointer; color: var(--muted); }
+.btn.grande { width: 100%; margin-top: 14px; font-size: 1.05rem; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-google { display: block; width: 100%; margin-top: 14px; }
+.fila-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+.logo { display: block; height: 40px; width: auto; }
+.pagina { padding-bottom: 96px; min-height: 100vh; }
+.cabecera { background: var(--surface); border-bottom: 3px solid var(--accent); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cabecera nav { display: flex; }
+.contenido { max-width: 640px; margin: 0 auto; padding: 18px 16px; }
+.acceso { max-width: 440px; }
+.aviso { padding: 12px 14px; border-radius: 12px; margin: 12px 0; background: #efe6f7; color: var(--brand); }
+.aviso.error { background: #fbe3e1; color: var(--error); }
+
+.productos { display: grid; gap: 10px; }
+.producto { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+.producto h3 { margin: 0 0 4px; }
+.producto .precio { margin: 4px 0 0; color: var(--brand); font-weight: 700; }
+
+.pastilla-carrito { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 608px; margin: 0 auto; background: var(--brand); color: #fff; border-radius: 18px;
+  padding: 10px 12px 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; box-shadow: 0 6px 20px rgba(89, 53, 140, 0.35); }
+.pastilla-carrito .btn-primario { background: var(--accent); border-color: var(--accent); color: #1c2a05; }
+
+.hoja-fondo { position: fixed; inset: 0; background: rgba(20, 8, 38, 0.55); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+.hoja { background: var(--surface); width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; border-radius: 22px 22px 0 0; padding: 16px 16px 24px; }
+.hoja-cabeza { display: flex; align-items: center; justify-content: space-between; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+.chip.activo { background: var(--brand); color: #fff; border-color: var(--brand); }
+.chip:disabled { opacity: 0.5; }
+.cantidad { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 16px 0 4px; }
+
+.lineas { margin: 8px 0; }
+.linea { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.linea small { display: block; color: var(--muted); font-size: 0.82rem; }
+.total { font-size: 1.15rem; margin-top: 10px; }
+.total strong { font-size: 1.45rem; color: var(--brand); }
+.cortesia { background: #f4fae6; border: 1px solid #d6e9ab; border-radius: 14px; padding: 12px 14px; margin: 12px 0; }
+.cortesia h2 { margin-top: 0; }
+
+.pedido { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+.pedido header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pedido.estado-listo { border: 2px solid var(--accent); }
+.marca { padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: #efe6f7; color: var(--brand); }
+.estado-listo .marca { background: #dff0bd; color: #2c5a07; }
+.reclamo { text-align: center; background: var(--bg); border-radius: 14px; padding: 12px; margin: 10px 0; }
+.codigo { font-size: 2.6rem; font-weight: 700; letter-spacing: 0.18em; color: var(--brand); margin: 0; }
+.qr { max-width: 170px; margin: 8px auto 0; background: #fff; padding: 6px; border-radius: 8px; }
+.qr svg { display: block; width: 100%; height: auto; }
+.cortesia-linea { color: var(--accent-oscuro); font-weight: 600; margin: 6px 0 0; }
+
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #150826; --surface: #241238; --text: #fbf3e7; --muted: #b7a6c2; --border: #3a2650; --brand: #c9a8f5; --error: #ff8a80; --accent-oscuro: #b7e06a; }
+  .btn-primario, .chip.activo { color: #150826; }
+  .aviso { background: #3a2650; }
+  .aviso.error { background: #4a1f1c; }
+  .cortesia { background: #1f2e10; border-color: #3b5a1b; }
+  .marca { background: #3a2650; }
+  .estado-listo .marca { background: #2c3d12; color: #d6f2a0; }
+  .pastilla-carrito { color: #150826; }
+  .logo { background: #fff; padding: 4px 8px; border-radius: 8px; }
+}
