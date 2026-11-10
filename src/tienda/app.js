@@ -350,6 +350,8 @@ export function crearTienda(cfg) {
       // Sin data-description: el botón que ya funcionó en our-memories no lo enviaba y Bold puede rechazar caracteres como # o tildes.
       if (e.sesion && e.sesion.email) s.setAttribute('data-customer-data', JSON.stringify({ email: e.sesion.email }));
       s.src = 'https://checkout.bold.co/library/boldPaymentButton.js';
+      // Ayuda para depurar el botón: deja en la consola lo que se le pasa a Bold (sin la firma, solo su largo).
+      try { console.info('[Bold] datos del botón', { apiKey: d.apiKey, orderId: d.orderId, amount: d.amount, currency: d.currency, redirectionUrl: d.redirectionUrl, firmaLargo: String(d.integritySignature).length }); } catch (x) { /* ok */ }
       contenedor.append(s);
       e.pagos[p.id] = contenedor;   // se conserva el mismo nodo entre repintados para no reiniciar el botón
       pintar();
