@@ -9,6 +9,14 @@ Repositorio: https://github.com/javierpineros/naidi-pos (un repositorio por proy
 - `docs/naidi/` — especificación, decisiones, compatibilidad iPad y prompt inicial. Empieza por `LEEME.md`.
 - `referencia/` — **solo referencia de diseño** (no es código de producción). `referencia/index.html` es el catálogo prototipo de Naidí con la identidad visual vigente; ábrelo en el navegador para ver colores, tipografías y componentes.
 
+## Stack y entorno local
+
+- Supabase completo (Postgres, Auth, RLS, Realtime, funciones del servidor). Front estático con Vite; sin NestJS ni Prisma.
+- Requiere Docker Desktop (motor WSL2 activo) y Supabase CLI. Desde la raíz: `supabase start`, `supabase status`, `supabase db reset`, `supabase stop`.
+- `supabase/migrations/` — esquema versionado en SQL. Studio local: http://127.0.0.1:54323.
+- Variables en `.env.local` (ver `.env.example`); la `service_role` nunca va en el front ni en el repo.
+- El repo no usa `fullstack-base-template`.
+
 ## Identidad visual (tomada de `referencia/`)
 
 - Colores de marca: púrpura `#59358C` y verde `#95C23D`, más neutros crema/blanco.

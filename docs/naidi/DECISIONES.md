@@ -2,7 +2,8 @@
 
 ## Tomadas
 
-- Backend en Supabase.
+- Backend en Supabase completo (Postgres, Auth, RLS, Realtime, funciones del servidor). Sin NestJS, sin Prisma y sin `fullstack-base-template`.
+- Desarrollo local con Supabase CLI y Docker Desktop; proyecto remoto `naidi-pos-dev` para desarrollo y otro aparte para producción. Sin sesiones de Claude Code en la nube.
 - Flujo de venta con check-in: el cliente escanea el QR de entrada mientras le alistan el pedido; el vendedor lo elige en el POS, registra lo alistado y confirma; el cliente paga después (efectivo, datáfono Bold o transferencia); los puntos se acreditan al marcar la venta como Pagada.
 - Registro de clientes en la Fase 1: Google y correo con código (sin contraseña). Apple queda para la Fase 2.
 - Puntos: 1 por cada $1.000 pagados, parametrizable. Premios de 50% con umbrales propuestos de 120, 130 y 140 puntos.
@@ -20,4 +21,4 @@
 - Resultados de la página de diagnóstico en el iPad.
 - Términos de Rappi para la tarjeta con QR en las bolsas.
 - Confirmación del contador sobre la DIAN y revisión legal del juego.
-- Reglas de revisión y aprobación del template: incorporarlas de forma explícita.
+- Protección de la rama `main` en GitHub (PR obligatorio): configurarla.

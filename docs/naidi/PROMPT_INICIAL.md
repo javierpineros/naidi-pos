@@ -4,21 +4,21 @@ Construye "Naidi.fit POS + Fidelización", un sistema para la heladería Naidi (
 
 ## PRIMERO: reglas del repositorio
 
-Este repositorio nace de `fulltack-base-template`. Antes de planear nada:
+Este repositorio es independiente (no usa ninguna plantilla). Antes de planear nada:
 
-1. Lee el `CLAUDE.md` del repositorio y todo lo que el template defina sobre revisión y aprobación de código: plantilla de PR, protección de ramas, CI, convenciones de commits y de ramas. Resúmeme en pocas líneas qué reglas encontraste.
-2. Esas reglas prevalecen sobre este documento. Si algo de aquí las contradice, dímelo y no lo resuelvas por tu cuenta.
+1. Lee el `CLAUDE.md` del repositorio y `docs/naidi/CLAUDE_NAIDI.md`. Resúmeme en pocas líneas las reglas que encontraste.
+2. Si algo de este documento contradice esas reglas, dímelo y no lo resuelvas por tu cuenta.
 3. Una rama y un PR por hito. No hagas merge ni empujes a la rama principal; espera mi revisión.
 4. Diagnóstico antes de cambiar. Valida la sintaxis después de cada edición. Escribe pruebas de integración con jsdom para los flujos del front.
 5. Agrupa tus preguntas aclaratorias y hazlas antes de empezar a programar.
-6. Si no tienes acceso a Supabase desde esta sesión, escribe las migraciones y pruébalas contra un Postgres local (Supabase CLI o un contenedor). No pidas ni guardes llaves de producción ni datos reales de clientes.
+6. Trabaja contra el Supabase local (`supabase start`, Docker Desktop): escribe las migraciones en `supabase/migrations/` y pruébalas con `supabase db reset`. Las variables del front son `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (ver `.env.example`). No pidas ni guardes llaves de producción ni datos reales de clientes.
 
 Lee también `docs/naidi/CLAUDE_NAIDI.md`, `docs/naidi/ESPECIFICACION.md`, `docs/naidi/DECISIONES.md` y `docs/naidi/COMPATIBILIDAD_IPAD.md`.
 
 ## Contexto
 
 - Casi todas las ventas son en la tienda física; el resto llega por Rappi. Hoy se registran en un Excel.
-- No hay backend. El catálogo y el carrito viven en el `index.html` de la web actual de Naidi (sitio estático, JavaScript sin framework). Extrae de ahí sabores, tamaños (Mini, Pequeño, Mediano, Grande), toppings y precios.
+- No hay backend. El catálogo y el carrito viven en `referencia/index.html` (copia del catálogo actual de Naidi: sitio estático, JavaScript sin framework). Extrae de ahí sabores, tamaños (Mini, Pequeño, Mediano, Grande), toppings y precios.
 - Backend nuevo: Supabase (Postgres, Auth, Row Level Security, Realtime, funciones del servidor, tareas programadas).
 - El POS es solo de control interno: sin facturación electrónica.
 - Todo el texto visible va en español colombiano, con tuteo.
