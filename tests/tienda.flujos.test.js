@@ -317,6 +317,7 @@ describe('Tienda: pago en línea con Bold', () => {
     expect(boton.getAttribute('data-currency')).toBe('COP');
     expect(boton.getAttribute('data-integrity-signature')).toBe('f'.repeat(64));
     expect(boton.getAttribute('data-redirection-url')).toBe('https://naidi.test/tienda/');
+    expect(boton.hasAttribute('data-description')).toBe(false);
     expect(JSON.parse(boton.getAttribute('data-customer-data'))).toEqual({ email: 'laura@prueba.test' });
     expect(boton.src).toContain('checkout.bold.co/library/boldPaymentButton.js');
     expect($('[data-accion="pagar-ahora"]')).toBeNull();

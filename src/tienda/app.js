@@ -347,7 +347,7 @@ export function crearTienda(cfg) {
       s.setAttribute('data-amount', String(d.amount));
       s.setAttribute('data-integrity-signature', d.integritySignature);
       s.setAttribute('data-redirection-url', d.redirectionUrl);
-      s.setAttribute('data-description', d.description || '');
+      // Sin data-description: el botón que ya funcionó en our-memories no lo enviaba y Bold puede rechazar caracteres como # o tildes.
       if (e.sesion && e.sesion.email) s.setAttribute('data-customer-data', JSON.stringify({ email: e.sesion.email }));
       s.src = 'https://checkout.bold.co/library/boldPaymentButton.js';
       contenedor.append(s);
