@@ -53,7 +53,8 @@ export async function manejarCheckout(req: Request, d: Dependencias): Promise<Re
     currency: data.moneda,
     integritySignature: firma,
     description: data.descripcion,
-    redirectionUrl: d.secretos.sitio + '/tienda/',
+    // Bold solo acepta URLs de retorno https. En desarrollo con http://localhost se omite y la persona vuelve a la tienda por su cuenta.
+    redirectionUrl: d.secretos.sitio.startsWith('https://') ? d.secretos.sitio + '/tienda/' : null,
   }, 200, cors);
 }
 

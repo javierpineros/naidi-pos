@@ -147,6 +147,12 @@ describe('Bold: checkout', () => {
     expect(llamadas).toEqual([{ quien: 'usuario:Bearer jwt-cliente', nombre: 'iniciar_pago_pedido_web', args: { p_pedido: 'p-1' } }]);
   });
 
+  it('Bold exige https: con un sitio http (desarrollo en localhost) no se envía URL de retorno', async () => {
+    const { deps } = depsFalsas({ respuestas: iniciar, secretos: { sitio: 'http://localhost:5173' } });
+    const j = await (await manejarCheckout(peticion({ pedido_id: 'p-1' }, 'Bearer j'), deps)).json();
+    expect(j.redirectionUrl).toBeNull();
+  });
+
   it('ignora cualquier monto que mande el cliente: solo pasa el id del pedido', async () => {
     const { deps, llamadas } = depsFalsas({ respuestas: iniciar });
     await manejarCheckout(peticion({ pedido_id: 'p-1', monto: 1, amount: 1 }, 'Bearer j'), deps);

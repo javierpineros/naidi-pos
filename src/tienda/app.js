@@ -346,7 +346,7 @@ export function crearTienda(cfg) {
       s.setAttribute('data-currency', d.currency);
       s.setAttribute('data-amount', String(d.amount));
       s.setAttribute('data-integrity-signature', d.integritySignature);
-      s.setAttribute('data-redirection-url', d.redirectionUrl);
+      if (d.redirectionUrl) s.setAttribute('data-redirection-url', d.redirectionUrl);   // solo https: Bold rechaza http://localhost
       // Sin data-description: el botón que ya funcionó en our-memories no lo enviaba y Bold puede rechazar caracteres como # o tildes.
       if (e.sesion && e.sesion.email) s.setAttribute('data-customer-data', JSON.stringify({ email: e.sesion.email }));
       s.src = 'https://checkout.bold.co/library/boldPaymentButton.js';

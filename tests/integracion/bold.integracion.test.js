@@ -113,7 +113,7 @@ describe('pago en línea con Bold contra la base real', () => {
   it('el checkout entrega datos del botón firmados con el monto del pedido guardado', async () => {
     a = await nuevoPedidoEnLinea();
     expect(a.estado).toBe(200);
-    expect(a.checkout).toMatchObject({ apiKey: 'identidad-de-prueba-local', amount: 4000, currency: 'COP', redirectionUrl: 'http://localhost:5173/tienda/' });
+    expect(a.checkout).toMatchObject({ apiKey: 'identidad-de-prueba-local', amount: 4000, currency: 'COP', redirectionUrl: null });   // SITE_URL http://localhost: Bold exige https, así que no se envía
     expect(a.checkout.orderId).toMatch(/^NW\d+-[0-9a-f]{10}$/);
     expect(a.checkout.integritySignature).toBe(await firmaIntegridad(a.checkout.orderId, 4000, 'COP', SECRETA));
     expect((await miPedido(a.pedido.id)).pago_en_linea_estado).toBe('pendiente');
