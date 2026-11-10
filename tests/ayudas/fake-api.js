@@ -24,6 +24,7 @@ export function crearFakeApi(opciones) {
     factor: o.factor || null,
     tienePerfil: o.tienePerfil !== false,
     espera: o.espera || [],
+    reportes: o.reportes || [],
     vouchers: o.vouchers || {},
     ultima: o.ultima || {},
     ventas: new Map(),
@@ -69,6 +70,8 @@ export function crearFakeApi(opciones) {
     async listaEspera() { red(); return copia(s.espera); },
     async marcarAlertaVista(id) { red(); reg('marcarAlertaVista', id); s.espera.forEach((e) => { if (e.checkin_id === id) e.alerta_pendiente = false; }); },
     async marcarSeFue(id) { red(); reg('marcarSeFue', id); s.espera = s.espera.filter((e) => e.checkin_id !== id); },
+    async reportesAbiertos() { red(); return copia(s.reportes); },
+    async resolverReporte(id, nota) { red(); reg('resolverReporte', id, nota); s.reportes = s.reportes.filter((r) => r.id !== id); },
     suscribirEspera(cb) { s.suscritos.push(cb); return () => {}; },
 
     async crearVenta({ idem, cliente }) {

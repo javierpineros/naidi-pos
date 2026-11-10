@@ -6,4 +6,5 @@ export const PAGINAS = {
   cuenta: 'cuenta/index.html',
   tienda: 'tienda/index.html',
   panel: 'panel/index.html',
+  privacidad: 'privacidad/index.html',
 };

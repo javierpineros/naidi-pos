@@ -159,3 +159,9 @@ label input, label select { margin-top: 4px; font-weight: 400; }
   .espera-acciones { grid-column: 1 / -1; justify-content: stretch; }
   .espera-acciones .btn { flex: 1; }
 }
+
+/* Reportes del cliente ("esto no es lo que pedí"): visibles desde cualquier pestaña */
+.reportes-cliente { padding: 0 12px; }
+.reporte-item { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; padding: 10px 14px; border: 2px solid var(--error); border-radius: var(--radio); background: color-mix(in srgb, var(--error) 12%, var(--surface)); }
+.reporte-item small { display: block; color: var(--text-muted); }
+.reporte-texto { flex: 1 1 auto; padding-right: 12px; }
