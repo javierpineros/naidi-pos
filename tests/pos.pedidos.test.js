@@ -142,6 +142,20 @@ describe('POS: pedidos web', () => {
     expect(texto('[data-campo="estado"]')).toBe('Entregado');
   });
 
+  it('un pedido en línea sin pago confirmado no se puede preparar y avisa que espera el pago', async () => {
+    const api = crearFakeApi({ pedidos: [pedido({ metodo_pago: 'en_linea', pago_en_linea_estado: 'pendiente' })] });
+    await entrarComoPersonal(api);
+    await click('[data-pestana="pedidos"]');
+    expect(texto('[data-campo="esperando-pago"]')).toContain('Esperando la confirmación del pago en línea');
+    expect($('[data-accion="preparando"]')).toBeNull();
+    expect($('[data-accion="listo"]')).toBeNull();
+    api._s.pedidos[0].pago_en_linea_estado = 'pagado';
+    await click('[data-pestana="venta"]');
+    await click('[data-pestana="pedidos"]');
+    expect($('[data-accion="preparando"]')).not.toBeNull();
+    expect($('[data-campo="esperando-pago"]')).toBeNull();
+  });
+
   it('"No llegó" solo aparece cuando la ventana ya venció', async () => {
     const api = crearFakeApi({ pedidos: [pedido(), pedido({ id: 'pw-2', numero: 8, ventana_inicio: '2026-11-10T13:00:00Z', ventana_fin: '2026-11-10T14:00:00Z' })] });
     await entrarComoPersonal(api);

@@ -26,6 +26,7 @@ export function crearFakeTienda(opciones) {
     llamadas: [],
     seq: 0,
     codigoValido: '123456',
+    fallos: {},
   };
   const red = () => { if (!s.red) throw new ErrorRed(); };
   const reg = (n, a) => s.llamadas.push([n, a]);
@@ -74,6 +75,14 @@ export function crearFakeTienda(opciones) {
       return { ...copia(pedido), repetido: false };
     },
     async misPedidos() { red(); cliente(); return copia(s.pedidos); },
+    async iniciarPagoBold(id) {
+      red(); reg('iniciarPagoBold', id); cliente();
+      const p = s.pedidos.find((x) => x.id === id);
+      if (!p || p.metodo_pago !== 'en_linea') throw new ErrorServidor('Este pedido se paga al recoger.');
+      if (s.fallos && s.fallos.pago) throw new ErrorServidor(s.fallos.pago);
+      return { apiKey: 'identidad-test', orderId: 'NW' + p.numero + '-abc', amount: p.total_cop, currency: 'COP', integritySignature: 'f'.repeat(64),
+        description: 'Pedido web #' + p.numero, redirectionUrl: 'https://naidi.test/tienda/' };
+    },
     async voyEnCamino(id) { red(); reg('voyEnCamino', id); const p = s.pedidos.find((x) => x.id === id); p.en_camino_en = '2026-11-10T16:00:00Z'; return copia(p); },
     async cancelarPedido(id) {
       red(); reg('cancelarPedido', id);

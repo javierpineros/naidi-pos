@@ -102,3 +102,5 @@ label { display: block; margin: 12px 0; font-weight: 600; font-size: 0.9rem; }
   .pastilla-carrito { color: #150826; }
   .logo { background: #fff; padding: 4px 8px; border-radius: 8px; }
 }
+
+.boton-bold { margin: 10px 0; min-height: 56px; }

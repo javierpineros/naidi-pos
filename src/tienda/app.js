@@ -37,7 +37,9 @@ export function crearTienda(cfg) {
     carrito: [], hoja: null, pedidos: [], idem: uuid(), error: '', aviso: '', ocupado: false,
     paso: 'correo', correo: '', volverA: 'menu', temporizador: null,
     form: { slot: '', pago: '', cortesia: [], nota: '' }, nuevo: null,
+    pagos: {}, volviendoDePago: false,
   };
+  const leerBusqueda = cfg.leerBusqueda || (() => (typeof window === 'undefined' ? '' : window.location.search));
 
   // ------------------------------------------------------------------ Almacenamiento (solo comodidad del carrito)
   function guardarCarrito() { try { almacen.escribir(CLAVE_CARRITO, JSON.stringify(e.carrito)); } catch (x) { /* ok */ } }
@@ -317,19 +319,58 @@ export function crearTienda(cfg) {
         ventanaInicio: s.inicio, ventanaFin: s.fin, pago: e.form.pago, cortesia: e.form.cortesia, nota: e.form.nota,
       });
       e.nuevo = r.numero;
+      e.nuevoEnLinea = r.metodo_pago === 'en_linea' ? r.id : null;
       e.carrito = [];
       guardarCarrito();
       e.idem = uuid();
       e.form = { slot: '', pago: '', cortesia: [], nota: '' };
-    }, errorEl, async () => { await abrirPedidos(); });
+    }, errorEl, async () => {
+      await abrirPedidos();
+      const nuevo = e.nuevoEnLinea && e.pedidos.find((x) => x.id === e.nuevoEnLinea);
+      e.nuevoEnLinea = null;
+      if (nuevo && nuevo.pago_en_linea_estado === 'pendiente') await iniciarPago(nuevo, null);
+    });
   }
 
   // ------------------------------------------------------------------ Mis pedidos
+  // Botón de pagos de Bold: la página solo pone los datos que firmó el servidor; el pago lo confirma el webhook, no este navegador.
+  async function iniciarPago(p, errorEl) {
+    if (e.pagos[p.id]) return;
+    try {
+      const d = await api.iniciarPagoBold(p.id);
+      const contenedor = h('div', { class: 'boton-bold', 'data-campo': 'boton-bold' });
+      const s = document.createElement('script');
+      s.setAttribute('data-bold-button', 'light-L');
+      s.setAttribute('data-api-key', d.apiKey);
+      s.setAttribute('data-order-id', d.orderId);
+      s.setAttribute('data-currency', d.currency);
+      s.setAttribute('data-amount', String(d.amount));
+      s.setAttribute('data-integrity-signature', d.integritySignature);
+      s.setAttribute('data-redirection-url', d.redirectionUrl);
+      s.setAttribute('data-description', d.description || '');
+      if (e.sesion && e.sesion.email) s.setAttribute('data-customer-data', JSON.stringify({ email: e.sesion.email }));
+      s.src = 'https://checkout.bold.co/library/boldPaymentButton.js';
+      contenedor.append(s);
+      e.pagos[p.id] = contenedor;   // se conserva el mismo nodo entre repintados para no reiniciar el botón
+      pintar();
+    } catch (x) {
+      if (errorEl) errorEl.textContent = mensajeError(x);
+    }
+  }
+
   function tarjetaPedido(p) {
     const abiertoP = ABIERTOS.includes(p.estado);
-    const [titulo, texto] = ESTADOS[p.estado] || [p.estado, ''];
+    const [titulo, textoBase] = ESTADOS[p.estado] || [p.estado, ''];
+    const enLinea = p.metodo_pago === 'en_linea';
+    const porPagar = enLinea && abiertoP && p.pago_en_linea_estado === 'pendiente';
+    const pagado = enLinea && p.pago_en_linea_estado === 'pagado';
+    if (pagado) delete e.pagos[p.id];
+    const texto = porPagar && p.estado === 'recibido' ? 'Recibimos tu pedido. Lo empezamos a preparar cuando se confirme tu pago.' : textoBase;
     const errorEl = h('p', { class: 'error', role: 'alert' });
     const acciones = [];
+    if (porPagar && !e.pagos[p.id]) {
+      acciones.push(h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'pagar-ahora', onclick: () => iniciarPago(p, errorEl) }, 'Pagar ahora'));
+    }
     if (abiertoP && !p.en_camino_en) {
       acciones.push(h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'en-camino', onclick: () => accion(() => api.voyEnCamino(p.id), errorEl, refrescarPedidos) }, 'Voy en camino'));
     }
@@ -339,6 +380,9 @@ export function crearTienda(cfg) {
     return h('article', { class: 'pedido estado-' + p.estado, 'data-pedido': p.id, 'data-numero': p.numero },
       h('header', null, h('strong', null, 'Pedido #' + p.numero), h('span', { class: 'marca', 'data-campo': 'estado' }, titulo)),
       h('p', null, texto),
+      pagado ? h('p', { class: 'ok', 'data-campo': 'pago-confirmado' }, 'Pago confirmado. ¡Gracias!') : null,
+      porPagar && e.volviendoDePago ? h('p', { class: 'aviso', role: 'status', 'data-campo': 'pago-confirmando' }, 'Estamos confirmando tu pago. Puede tardar unos minutos; esta página se actualiza sola.') : null,
+      porPagar && e.pagos[p.id] ? [h('p', { class: 'pequeno' }, 'Toca el botón para pagar con tarjeta, PSE, Nequi o Bancolombia.'), e.pagos[p.id]] : null,
       h('p', { class: 'ventana' }, 'Recógelo entre las ' + horaBogota(p.ventana_inicio) + ' y las ' + horaBogota(p.ventana_fin)),
       p.en_camino_en && abiertoP ? h('p', { class: 'ok', 'data-campo': 'en-camino' }, 'Avisaste que vas en camino.') : null,
       abiertoP
@@ -512,6 +556,8 @@ export function crearTienda(cfg) {
       try { e.perfil = await api.perfil(); if (e.perfil.acepta_datos) e.mia = await api.miTienda(); } catch (x) { /* se reintenta al pedir */ }
     }
     e.pantalla = 'menu';
+    // Si vuelve de Bold, la redirección solo indica que pasó por la pasarela: el pago lo confirma el servidor.
+    if (e.sesion && /[?&]bold-order-id=/.test(leerBusqueda())) { e.volviendoDePago = true; await abrirPedidos(); return; }
     pintar();
   }
 

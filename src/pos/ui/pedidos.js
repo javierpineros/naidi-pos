@@ -71,8 +71,11 @@ export function crearVistaPedidos(ctx) {
     const abierto = ABIERTOS.includes(p.estado);
     const vencida = abierto && ctx.ahora() >= new Date(p.ventana_fin);
     const acciones = [];
-    if (p.estado === 'recibido') acciones.push(boton('Preparando', 'preparando', () => cambiar(p, 'preparando')));
-    if (p.estado === 'recibido' || p.estado === 'preparando') acciones.push(boton('Listo', 'listo', () => cambiar(p, 'listo')));
+    // Un pedido en línea sin pago confirmado no se prepara: el servidor también lo impide.
+    const sinPagar = p.metodo_pago === 'en_linea' && p.pago_en_linea_estado !== 'pagado';
+    if (sinPagar && abierto) acciones.push(h('small', { 'data-campo': 'esperando-pago' }, 'Esperando la confirmación del pago en línea.'));
+    if (!sinPagar && p.estado === 'recibido') acciones.push(boton('Preparando', 'preparando', () => cambiar(p, 'preparando')));
+    if (!sinPagar && (p.estado === 'recibido' || p.estado === 'preparando')) acciones.push(boton('Listo', 'listo', () => cambiar(p, 'listo')));
     if (abierto) acciones.push(boton('Entregar', 'entregar', () => entregar(p), true));
     if (vencida) acciones.push(boton('No llegó', 'no-llego', () => noLlego(p)));
     if (abierto && p.pago_en_linea_estado !== 'pagado') acciones.push(boton('Cancelar', 'cancelar', () => cancelar(p)));

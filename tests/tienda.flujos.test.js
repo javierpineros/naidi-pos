@@ -288,3 +288,76 @@ describe('Tienda: mis pedidos', () => {
     expect($$('.producto').length).toBeGreaterThan(0);
   });
 });
+
+describe('Tienda: pago en línea con Bold', () => {
+  const ESTADO = { pagos: { al_recoger: true, en_linea: true } };
+  const enLinea = (extra) => ({
+    id: 'pw-5', numero: 5, estado: 'recibido', metodo_pago: 'en_linea', pago_en_linea_estado: 'pendiente', codigo: 'AB23',
+    ventana_inicio: '2026-11-10T16:00:00Z', ventana_fin: '2026-11-10T16:30:00Z', en_camino_en: null, cortesia_toppings: [], nota: null,
+    subtotal_cop: 4000, total_cop: 4000, creado_en: '2026-11-10T14:50:00Z',
+    lineas: [{ producto_clave: 'latte', producto_nombre: 'Café latte', categoria: 'cafes', tamano: null, presentacion: null, base: null, toppings: [], cantidad: 1, precio_unitario_cop: 4000 }],
+    ...extra,
+  });
+
+  it('al pedir en línea abre el botón de Bold con los datos firmados por el servidor', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO });
+    await montar(api);
+    await click('[data-producto="latte"] [data-accion="elegir"]');
+    await click('[data-accion="ver-carrito"]');
+    await escribir('[data-campo="ventana"]', $('[data-campo="ventana"] option:nth-child(2)').value);
+    await click('[data-pago="en_linea"]');
+    await click('[data-accion="pedir"]');
+    await esperar(6);
+    expect(api._s.llamadas.find((l) => l[0] === 'crearPedido')[1].pago).toBe('en_linea');
+    expect(texto('.pedido')).toContain('cuando se confirme tu pago');
+    const boton = $('[data-campo="boton-bold"] script');
+    expect(boton).not.toBeNull();
+    expect(boton.getAttribute('data-api-key')).toBe('identidad-test');
+    expect(boton.getAttribute('data-amount')).toBe('4000');
+    expect(boton.getAttribute('data-currency')).toBe('COP');
+    expect(boton.getAttribute('data-integrity-signature')).toBe('f'.repeat(64));
+    expect(boton.getAttribute('data-redirection-url')).toBe('https://naidi.test/tienda/');
+    expect(JSON.parse(boton.getAttribute('data-customer-data'))).toEqual({ email: 'laura@prueba.test' });
+    expect(boton.src).toContain('checkout.bold.co/library/boldPaymentButton.js');
+    expect($('[data-accion="pagar-ahora"]')).toBeNull();
+  });
+
+  it('el botón sobrevive a las consultas periódicas y desaparece cuando el servidor confirma el pago', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
+    const { t } = await montar(api);
+    await click('[data-accion="mis-pedidos"]');
+    await click('[data-accion="pagar-ahora"]');
+    const nodo = $('[data-campo="boton-bold"]');
+    await t.refrescarPedidos();
+    await t.refrescarPedidos();
+    expect($('[data-campo="boton-bold"]')).toBe(nodo);           // mismo nodo: el botón no se reinicia
+    expect(api._s.llamadas.filter((l) => l[0] === 'iniciarPagoBold')).toHaveLength(1);
+    api._s.pedidos[0].pago_en_linea_estado = 'pagado';           // lo marca el webhook en el servidor
+    await t.refrescarPedidos();
+    expect($('[data-campo="boton-bold"]')).toBeNull();
+    expect(texto('[data-campo="pago-confirmado"]')).toContain('Pago confirmado');
+    expect($('[data-accion="pagar-ahora"]')).toBeNull();
+  });
+
+  it('al volver de Bold avisa que está confirmando el pago, sin darlo por hecho', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
+    await montar(api, { leerBusqueda: () => '?bold-order-id=NW5-abc&bold-tx-status=approved' });
+    expect(texto('[data-campo="pago-confirmando"]')).toContain('Estamos confirmando tu pago');
+    expect($('[data-campo="pago-confirmado"]')).toBeNull();
+  });
+
+  it('un pedido para pagar al recoger no muestra pago en línea; un error del servidor se ve en la tarjeta', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea({ id: 'pw-6', numero: 6, metodo_pago: 'al_recoger', pago_en_linea_estado: 'no_aplica' })] });
+    await montar(api);
+    await click('[data-accion="mis-pedidos"]');
+    expect($('[data-accion="pagar-ahora"]')).toBeNull();
+
+    const api2 = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
+    api2._s.fallos.pago = 'El pago en línea todavía no está disponible.';
+    await montar(api2);
+    await click('[data-accion="mis-pedidos"]');
+    await click('[data-accion="pagar-ahora"]');
+    expect(texto('.pedido .error')).toContain('todavía no está disponible');
+    expect($('[data-campo="boton-bold"]')).toBeNull();
+  });
+});
