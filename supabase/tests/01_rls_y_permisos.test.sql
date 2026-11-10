@@ -37,7 +37,7 @@ exception when others then
 end $$;
 
 -- Una entrada de auditoría creada por el servidor (como lo hará una anulación de venta).
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d0","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d0","role":"authenticated","aal":"aal2"}', true);
 select private.auditar('prueba', 'venta', 'v-1', '{"motivo":"prueba"}');
 
 -- ----------------------------------------------------------------------------------------------
@@ -91,7 +91,7 @@ reset role;
 -- ----------------------------------------------------------------------------------------------
 -- Dueño: lee todo, pero tampoco escribe directo (los cambios sensibles irán por funciones con PIN).
 -- ----------------------------------------------------------------------------------------------
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d0","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d0","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 select pg_temp.contar('due_staff',      'select count(*) from public.staff');
 select pg_temp.contar('due_auditoria',  'select count(*) from public.auditoria');
