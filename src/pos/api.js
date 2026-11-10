@@ -104,6 +104,21 @@ export function crearApi(client) {
       return () => client.removeChannel(canal);
     },
 
+    // ---- Pedidos web (tienda)
+    pedidosWebAbiertos: () => rpc('pedidos_web_abiertos'),
+    cambiarEstadoPedidoWeb: (pedido, estado) => rpc('cambiar_estado_pedido_web', { p_pedido: pedido, p_estado: estado }),
+    entregarPedidoWeb: (pedido, codigo, medio, efectivo) =>
+      rpc('entregar_pedido_web', { p_pedido: pedido, p_codigo: codigo, p_medio: medio || null, p_efectivo_recibido: efectivo === undefined ? null : efectivo }),
+    marcarNoLlego: (pedido) => rpc('marcar_no_llego', { p_pedido: pedido }),
+    cancelarPedidoWeb: (pedido, motivo) => rpc('cancelar_pedido_web', { p_pedido: pedido, p_motivo: motivo }),
+    suscribirPedidosWeb(cuandoCambie) {
+      const canal = client
+        .channel('pedidos-web-pos')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_web' }, () => cuandoCambie())
+        .subscribe();
+      return () => client.removeChannel(canal);
+    },
+
     // ---- Venta
     crearVenta: ({ idem, cliente }) => rpc('crear_venta', { p_idem: idem, p_cliente: cliente || null }),
     asignarCliente: (venta, cliente) => rpc('asignar_cliente', { p_venta: venta, p_cliente: cliente }),

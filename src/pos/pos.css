@@ -165,3 +165,19 @@ label input, label select { margin-top: 4px; font-weight: 400; }
 .reporte-item { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; padding: 10px 14px; border: 2px solid var(--error); border-radius: var(--radio); background: color-mix(in srgb, var(--error) 12%, var(--surface)); }
 .reporte-item small { display: block; color: var(--text-muted); }
 .reporte-texto { flex: 1 1 auto; padding-right: 12px; }
+
+/* ---------- Pedidos web ---------- */
+.pedidos-lista { display: grid; gap: 12px; }
+.pedido-item { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: grid; gap: 6px; }
+.pedido-item header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pedido-item .ventana { margin: 0; font-size: 0.9rem; }
+.pedido-item .lineas { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.pedido-item .lineas small { display: block; }
+.pedido-item.en-camino { border: 2px solid var(--accent); }
+.pedido-item.estado-listo { border-left: 6px solid var(--accent); }
+.pedido-item.estado-entregado, .pedido-item.estado-cancelado, .pedido-item.estado-no_llego { opacity: 0.7; }
+.pedido-item .cortesia, .pedido-item .total { margin: 0; }
+.pedido-item .cortesia { font-weight: 600; }
+.pedido-item .acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.marca.camino { background: var(--accent); color: #1c2a05; border-color: var(--accent); }
+.marca.web { background: var(--brand); color: #fff; border-color: var(--brand); }

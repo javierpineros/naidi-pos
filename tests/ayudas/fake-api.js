@@ -37,6 +37,8 @@ export function crearFakeApi(opciones) {
     ventasDia: o.ventasDia || [],
     alertas: o.alertas || [],
     suscritos: [],
+    pedidos: o.pedidos || [],
+    suscritosPedidos: [],
   };
   const red = () => { if (!s.red) throw new ErrorRed(); };
   const reg = (n, a) => s.llamadas.push([n, a]);
@@ -73,6 +75,41 @@ export function crearFakeApi(opciones) {
     async reportesAbiertos() { red(); return copia(s.reportes); },
     async resolverReporte(id, nota) { red(); reg('resolverReporte', id, nota); s.reportes = s.reportes.filter((r) => r.id !== id); },
     suscribirEspera(cb) { s.suscritos.push(cb); return () => {}; },
+
+    // ---- Pedidos web. El código del cliente vive en _codigo (el servidor no lo manda al POS).
+    async pedidosWebAbiertos() { red(); return copia(s.pedidos).map((p) => { delete p._codigo; return p; }); },
+    suscribirPedidosWeb(cb) { s.suscritosPedidos.push(cb); return () => {}; },
+    async cambiarEstadoPedidoWeb(id, estado) {
+      red(); reg('cambiarEstadoPedidoWeb', { id, estado });
+      const p = s.pedidos.find((x) => x.id === id);
+      if (!p || !['recibido', 'preparando'].includes(p.estado)) throw new ErrorServidor('El pedido no se puede pasar a ' + estado + '.');
+      p.estado = estado;
+      return copia(p);
+    },
+    async entregarPedidoWeb(id, codigo, medio, efectivo) {
+      red(); reg('entregarPedidoWeb', { id, codigo, medio, efectivo });
+      const p = s.pedidos.find((x) => x.id === id);
+      if (!p) throw new ErrorServidor('El pedido no existe.');
+      if (p.estado === 'entregado') throw new ErrorServidor('Este pedido ya se entregó.');
+      if (String(codigo).toUpperCase() !== p._codigo) throw new ErrorServidor('El código no coincide con el del pedido. Pídele al cliente que lo revise en su cuenta.');
+      if (p.metodo_pago === 'al_recoger' && !medio) throw new ErrorServidor('Registra cómo pagó el cliente: efectivo, datáfono o transferencia.');
+      if (medio === 'efectivo' && efectivo < p.total_cop) throw new ErrorServidor('El efectivo recibido no alcanza para el total de ' + p.total_cop + '.');
+      p.estado = 'entregado';
+      return { pedido_id: id, numero: p.numero, estado: 'entregado', total_cop: p.total_cop, medio_pago: medio || 'bold_online',
+        cambio_cop: medio === 'efectivo' ? efectivo - p.total_cop : null, puntos_acreditados: Math.floor(p.total_cop / 1000) };
+    },
+    async marcarNoLlego(id) {
+      red(); reg('marcarNoLlego', id);
+      const p = s.pedidos.find((x) => x.id === id);
+      p.estado = 'no_llego';
+      return { estado: 'no_llego', no_llego_total: 1, cuenta_senalada: false };
+    },
+    async cancelarPedidoWeb(id, motivo) {
+      red(); reg('cancelarPedidoWeb', { id, motivo });
+      const p = s.pedidos.find((x) => x.id === id);
+      p.estado = 'cancelado';
+      return copia(p);
+    },
 
     async crearVenta({ idem, cliente }) {
       red();
