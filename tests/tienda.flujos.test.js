@@ -211,7 +211,8 @@ describe('Tienda: pedir', () => {
     await agregarBowl();
     await click('[data-accion="ver-carrito"]');
     expect($('[data-pago="al_recoger"]').disabled).toBe(true);
-    expect($('[data-pago="en_linea"]').classList.contains('activo')).toBe(true);
+    expect($('[data-pago="en_linea"]').checked).toBe(true);
+    expect($('[data-pago="en_linea"]').type).toBe('radio');
   });
 
   it('la forma de pago sale de la configuración: solo se ofrece lo que está activo', async () => {
@@ -226,7 +227,9 @@ describe('Tienda: pedir', () => {
     await click('[data-accion="ver-carrito"]');
     expect($('[data-pago="en_linea"]')).not.toBeNull();
     await click('[data-pago="en_linea"]');
-    expect($('[data-pago="en_linea"]').classList.contains('activo')).toBe(true);
+    expect($('[data-pago="en_linea"]').checked).toBe(true);
+    expect($('[data-pago="al_recoger"]').checked).toBe(false);
+    expect($('[data-pago]').tagName).toBe('INPUT');   // opciones de radio, no botones
   });
 });
 

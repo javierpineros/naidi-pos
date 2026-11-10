@@ -258,10 +258,15 @@ export function crearTienda(cfg) {
       h('option', { value: '' }, slots.length ? 'Elige la hora' : 'Hoy ya no hay horas disponibles'),
       slots.map((s) => h('option', { value: s.clave, selected: e.form.slot === s.clave ? true : null }, s.etiqueta)));
 
-    const formaPago = h('div', { class: 'chips' },
-      pagos.al_recoger ? h('button', { type: 'button', class: 'chip' + (e.form.pago === 'al_recoger' ? ' activo' : ''), 'data-pago': 'al_recoger',
-        disabled: e.mia && e.mia.restriccion === 'prepago' ? true : null, onclick: () => { e.form.pago = 'al_recoger'; pintar(); } }, 'Pagar al recoger') : null,
-      pagos.en_linea ? h('button', { type: 'button', class: 'chip' + (e.form.pago === 'en_linea' ? ' activo' : ''), 'data-pago': 'en_linea', onclick: () => { e.form.pago = 'en_linea'; pintar(); } }, 'Pagar en línea') : null);
+    // Opciones excluyentes: se ven como opciones con círculo (radio), no como botones.
+    const opcionPago = (clave, titulo, detalle, deshabilitada) =>
+      h('label', { class: 'opcion-pago' + (e.form.pago === clave ? ' elegida' : '') + (deshabilitada ? ' desactivada' : '') },
+        h('input', { type: 'radio', name: 'pago', value: clave, 'data-pago': clave, checked: e.form.pago === clave ? true : null, disabled: deshabilitada ? true : null,
+          onchange: () => { e.form.pago = clave; pintar(); } }),
+        h('span', null, h('strong', null, titulo), h('small', null, detalle)));
+    const formaPago = h('div', { class: 'opciones-pago', role: 'radiogroup', 'aria-label': 'Forma de pago' },
+      pagos.al_recoger ? opcionPago('al_recoger', 'Pagar al recoger', 'Pagas en la tienda: efectivo, datáfono o transferencia.', e.mia && e.mia.restriccion === 'prepago') : null,
+      pagos.en_linea ? opcionPago('en_linea', 'Pagar en línea', 'Tarjeta, PSE, Nequi o Bancolombia, con Bold.', false) : null);
 
     const bloque = e.mia && e.mia.restriccion === 'bloqueo';
     const lleno = e.mia && e.mia.abiertos >= e.mia.max_abiertos;

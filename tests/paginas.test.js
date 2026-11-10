@@ -23,4 +23,18 @@ describe('páginas de cada superficie', () => {
       expect(doc.querySelector('meta[name="robots"][content="noindex"]')).not.toBeNull();
     }
   });
+
+  it('la raíz lleva a /tienda/ cuando Bold devuelve a la persona allí, conservando la consulta', () => {
+    const html = readFileSync(resolve(__dirname, '..', PAGINAS.inicio), 'utf8');
+    const script = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
+    const correr = (search) => {
+      const destinos = [];
+      const location = { search, replace: (u) => destinos.push(u) };
+      new Function('location', script)(location);
+      return destinos;
+    };
+    expect(correr('?bold-order-id=NW35-abc&bold-tx-status=approved')).toEqual(['/tienda/?bold-order-id=NW35-abc&bold-tx-status=approved']);
+    expect(correr('')).toEqual([]);
+    expect(correr('?otra=1')).toEqual([]);
+  });
 });
