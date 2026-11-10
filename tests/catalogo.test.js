@@ -56,7 +56,9 @@ describe('importador del catálogo desde referencia/index.html', () => {
 
 describe('SQL generado', () => {
   it('el archivo versionado coincide con lo que genera la fuente (sin desfase)', () => {
-    expect(leer('supabase/seeds/catalogo.sql')).toBe(generarSql(catalogo));
+    // Git en Windows puede convertir los fines de línea al descargar; el contenido es lo que importa.
+    const normalizar = (texto) => texto.split(String.fromCharCode(13)).join('');
+    expect(normalizar(leer('supabase/seeds/catalogo.sql'))).toBe(generarSql(catalogo));
   });
 
   it('es idempotente: todo insert tiene on conflict y se desactiva lo que ya no está', () => {

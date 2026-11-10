@@ -23,7 +23,12 @@
   - Javier tiene cuenta de Bold y pedirá las llaves. Javier ya probó la integración en `our-memories` y confirmó que, al configurar las llaves de pruebas, Bold pregunta si se quieren usar webhooks (es decir, el ambiente de pruebas sí admite webhooks).
 - Supuestos de trabajo adoptados (ajustables desde la tabla de reglas): los cafés y el litro suman con la misma regla; los puntos no vencen en la Fase 1; el voucher de canje dura 45 días; el PIN es solo del dueño; el Excel actual no se migra y se empieza desde cero.
 
+- H3 (ventas y puntos), supuestos de trabajo ajustables: el regalo de bienvenida es un descuento de 20% sobre un bowl de la primera compra (provisional); cancelar o anular una venta devuelve el premio o regalo que usó; una venta sin internet puede registrarse hasta 7 días después y no emite QR posterior; máximo 5 QR posteriores reclamados por cliente por día (hora de Bogotá); un cliente puede quedar con saldo negativo si anulan una venta cuyos puntos ya gastó.
+
 ## Pendientes
+
+- Definir el regalo de bienvenida (hoy provisional: 20% de descuento en un bowl; regla `bienvenida.regalo`).
+- La anulación de una venta pagada exige hoy solo el rol de dueño; el PIN y el segundo factor se suman en H4.
 
 - Confirmar con Bold si el plan de Naidi incluye la API de pagos en línea y los montos mínimos y máximos por método (preguntas ya redactadas en `our-memories/docs/02-suscripciones-bold.md` §10). Verificar en la prueba real el nombre de la cabecera de firma y el esquema del webhook en pruebas.
 - Resultados de la página de diagnóstico en el iPad.
