@@ -1,4 +1,2 @@
-insert into public.staff (user_id, rol, nombre)
-select id, 'cajero', 'Yo' from auth.users where email = 'yo@prueba.test';
-
-update public.banderas set activa = true where clave = 'pedidos_web';
+update public.banderas set activa = true where clave in ('pedidos_web', 'pago_en_linea_bold');
+update public.pedidos_web_interruptor set abierta = true where id = 1;
