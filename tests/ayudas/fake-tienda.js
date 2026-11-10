@@ -17,8 +17,7 @@ export function crearFakeTienda(opciones) {
     estado: Object.assign({
       abierta: true,
       pagos: { al_recoger: true, en_linea: false },
-      horario: { abre: '10:00', cierra: '20:00' },
-      ventana: { min_anticipacion_min: 20, max_anticipacion_horas: 24, max_duracion_min: 60 },
+      ventana: { min_anticipacion_min: 20, max_anticipacion_horas: 3, max_duracion_min: 60 },
       max_abiertos: 2,
       cortesia: { activo: true, cantidad: 1 },
     }, o.estado || {}),
@@ -54,7 +53,7 @@ export function crearFakeTienda(opciones) {
       cliente();
       const previo = s.pedidos.find((x) => x._idem === p.idem);
       if (previo) return copia(previo);
-      if (!s.estado.abierta) throw new ErrorServidor('La tienda en línea todavía no está abierta.');
+      if (!s.estado.abierta) throw new ErrorServidor('Por ahora no estamos recibiendo pedidos en línea. Puedes pedir directamente en la tienda.');
       let total = 0;
       const lineas = p.lineas.map((l) => {
         const pr = cat.productos.get(l.producto);

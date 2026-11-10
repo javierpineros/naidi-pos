@@ -16,6 +16,33 @@ function pedido(extra) {
 }
 
 describe('POS: pedidos web', () => {
+  it('el interruptor enciende y apaga los pedidos web a mano, sin horario', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-pestana="pedidos"]');
+    expect(texto('[data-accion="interruptor-pedidos"]')).toContain('apagados: encender');
+    await click('[data-accion="interruptor-pedidos"]');
+    expect(api._s.tiendaWeb.abierta).toBe(true);
+    expect(texto('[data-accion="interruptor-pedidos"]')).toContain('Recibiendo pedidos web: apagar');
+    expect($('[data-accion="interruptor-pedidos"]').getAttribute('aria-pressed')).toBe('true');
+    await click('[data-accion="interruptor-pedidos"]');
+    expect(api._s.tiendaWeb.abierta).toBe(false);
+    expect(api._s.llamadas.filter((l) => l[0] === 'fijarPedidosWeb').map((l) => l[1])).toEqual([true, false]);
+  });
+
+  it('si el dueño no habilitó los pedidos web, el interruptor está desactivado y lo explica', async () => {
+    await entrarComoPersonal(crearFakeApi({ tiendaWeb: { abierta: false, habilitada: false } }));
+    await click('[data-pestana="pedidos"]');
+    expect($('[data-accion="interruptor-pedidos"]').disabled).toBe(true);
+    expect(texto('[data-campo="interruptor-texto"]')).toContain('dueño debe habilitar');
+  });
+
+  it('el estado del interruptor se ve al abrir el turno aunque lo haya cambiado otra persona', async () => {
+    await entrarComoPersonal(crearFakeApi({ tiendaWeb: { abierta: true, habilitada: true } }));
+    await click('[data-pestana="pedidos"]');
+    expect(texto('[data-accion="interruptor-pedidos"]')).toContain('Recibiendo pedidos web');
+  });
+
   it('sin pedidos muestra la bandeja vacía', async () => {
     await entrarComoPersonal(crearFakeApi());
     await click('[data-pestana="pedidos"]');

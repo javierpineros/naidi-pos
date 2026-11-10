@@ -56,11 +56,25 @@ select throws_ok($$select public.pedidos_web_abiertos()$$, '42501', null, 'anon 
 
 select pg_temp.como('00000000-0000-0000-0000-0000000009c1');
 select throws_like(format($f$select public.crear_pedido_web(gen_random_uuid(), '[{"producto":"latte"}]'::jsonb, %L, %L, 'al_recoger')$f$,
-                          pg_temp.manana('11:00'), pg_temp.manana('11:30')), '%todavía no está abierta%', 'con la bandera apagada no se crean pedidos');
+                          pg_temp.manana('11:00'), pg_temp.manana('11:30')), '%no estamos recibiendo pedidos%', 'con la bandera apagada no se crean pedidos');
 
--- Se enciende la bandera (como migración de pruebas)
+-- El dueño habilita la función (bandera); mientras el interruptor siga apagado, tampoco se pide
 reset role;
 update public.banderas set activa = true where clave = 'pedidos_web';
+select pg_temp.anon();
+select is(public.tienda_estado() ->> 'abierta', 'false', 'habilitada pero con el interruptor apagado, la tienda sigue cerrada');
+select is(public.tienda_estado() ->> 'habilitada', 'true', 'y se ve que está habilitada');
+select pg_temp.como('00000000-0000-0000-0000-0000000009c1');
+select throws_like(format($f$select public.crear_pedido_web(gen_random_uuid(), '[{"producto":"latte"}]'::jsonb, %L, %L, 'al_recoger')$f$,
+                          pg_temp.manana('11:00'), pg_temp.manana('11:30')), '%no estamos recibiendo pedidos%', 'con el interruptor apagado no se crean pedidos');
+select throws_ok($$select public.fijar_pedidos_web(true)$$, '42501', null, 'un cliente no maneja el interruptor');
+
+-- El personal (sin PIN ni dueño) lo enciende al abrir la tienda
+select pg_temp.como('00000000-0000-0000-0000-0000000009ca');
+select is(public.fijar_pedidos_web(true) ->> 'abierta', 'true', 'el personal enciende el interruptor');
+select is((select count(*) from public.auditoria where accion = 'fijar_pedidos_web'), 1::bigint, 'queda en la auditoría');
+select pg_temp.anon();
+select is(public.tienda_estado() ->> 'abierta', 'true', 'ahora la tienda recibe pedidos, sin importar la hora');
 
 -- ---------------------------------------------------------------------------------------------
 -- 2. Creación: el servidor reprecia, valida ventana, pago y cortesía
@@ -71,8 +85,6 @@ select throws_like(format($f$select public.crear_pedido_web(gen_random_uuid(), '
                    '%al menos 20 minutos%', 'no se pide para dentro de menos de 20 minutos');
 select throws_like(format($f$select public.crear_pedido_web(gen_random_uuid(), '[{"producto":"latte"}]'::jsonb, %L, %L, 'al_recoger')$f$,
                           pg_temp.manana('11:00'), pg_temp.manana('13:00')), '%máximo 60 minutos%', 'la ventana tiene tope de duración');
-select throws_like(format($f$select public.crear_pedido_web(gen_random_uuid(), '[{"producto":"latte"}]'::jsonb, %L, %L, 'al_recoger')$f$,
-                          pg_temp.manana('21:00'), pg_temp.manana('21:30')), '%entre las 10:00 y las 20:00%', 'fuera de horario no se pide');
 select throws_like(format($f$select public.crear_pedido_web(gen_random_uuid(), '[{"producto":"latte"}]'::jsonb, %L, %L, 'en_linea')$f$,
                           pg_temp.manana('11:00'), pg_temp.manana('11:30')), '%pago en línea todavía no está disponible%', 'el pago en línea no responde con la bandera de Bold apagada');
 select throws_like(format($f$select public.crear_pedido_web(gen_random_uuid(), '[]'::jsonb, %L, %L, 'al_recoger')$f$,

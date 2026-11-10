@@ -34,7 +34,7 @@ describe('Tienda: menú y carrito', () => {
 
   it('con la tienda cerrada avisa y no deja elegir productos', async () => {
     await montar(crearFakeTienda({ estado: { abierta: false } }));
-    expect(texto('[data-campo="tienda-cerrada"]')).toContain('abren pronto');
+    expect(texto('[data-campo="tienda-cerrada"]')).toContain('no estamos recibiendo pedidos');
     expect($('[data-producto="amazonas"] [data-accion="elegir"]').disabled).toBe(true);
   });
 
@@ -109,7 +109,7 @@ describe('Tienda: pedir', () => {
     const opciones = $$('[data-campo="ventana"] option').map((o) => o.textContent);
     expect(opciones[1]).toBe('Hoy 10:30 – 11:00');
     expect(opciones.some((o) => o.startsWith('Hoy 10:00') || o.startsWith('Hoy 10:15'))).toBe(false);   // antes de la anticipación mínima
-    expect(opciones.some((o) => o.startsWith('Mañana'))).toBe(false);                                   // fuera de las próximas 24 h
+    expect(opciones[opciones.length - 1]).toBe('Hoy 12:45 – 13:15');                                    // tope: 3 h de anticipación máxima, sin horario fijo
     await escribir('[data-campo="ventana"]', $('[data-campo="ventana"] option:nth-child(2)').value);
     await escribir('[data-campo="nota"]', 'sin canela');
     await click('[data-accion="pedir"]');

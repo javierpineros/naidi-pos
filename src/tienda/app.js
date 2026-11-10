@@ -70,10 +70,8 @@ export function crearTienda(cfg) {
   }
 
   // ------------------------------------------------------------------ Ventanas de recogida (hora de Bogotá, UTC-5 todo el año)
-  function aMin(hhmm) { const p = String(hhmm || '0:0').split(':'); return Number(p[0]) * 60 + Number(p[1]); }
   function ventanasDisponibles() {
     const est = e.estado || {};
-    const hor = est.horario || { abre: '10:00', cierra: '20:00' };
     const vent = est.ventana || { min_anticipacion_min: 20, max_anticipacion_horas: 24 };
     const t0 = ahora().getTime();
     const minimo = t0 + (vent.min_anticipacion_min + 1) * 60000;
@@ -81,7 +79,7 @@ export function crearTienda(cfg) {
     const dias = [hoyBogota(ahora()), hoyBogota(new Date(t0 + 86400000))];
     const lista = [];
     dias.forEach((dia, i) => {
-      for (let m = aMin(hor.abre); m + DURACION_VENTANA_MIN <= aMin(hor.cierra); m += PASO_MIN) {
+      for (let m = 0; m < 24 * 60; m += PASO_MIN) {   // sin horario fijo: lo acota la anticipación máxima y el interruptor del personal
         const fmt = (min) => String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
         const ini = new Date(dia + 'T' + fmt(m) + ':00-05:00');
         if (ini.getTime() < minimo || ini.getTime() > maximo) continue;
@@ -109,7 +107,7 @@ export function crearTienda(cfg) {
   function bannerCerrada() {
     if (abierta()) return null;
     return h('p', { class: 'aviso', role: 'status', 'data-campo': 'tienda-cerrada' },
-      'Los pedidos en línea abren pronto. Mientras tanto, mira el menú y pide directamente en la tienda.');
+      'Por ahora no estamos recibiendo pedidos en línea. Mira el menú y pide directamente en la tienda.');
   }
 
   async function accion(fn, errorEl, despues) {

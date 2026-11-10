@@ -106,6 +106,8 @@ export function crearApi(client) {
 
     // ---- Pedidos web (tienda)
     pedidosWebAbiertos: () => rpc('pedidos_web_abiertos'),
+    estadoPedidosWeb: () => rpc('tienda_estado'),
+    fijarPedidosWeb: (abierta) => rpc('fijar_pedidos_web', { p_abierta: !!abierta }),
     cambiarEstadoPedidoWeb: (pedido, estado) => rpc('cambiar_estado_pedido_web', { p_pedido: pedido, p_estado: estado }),
     entregarPedidoWeb: (pedido, codigo, medio, efectivo) =>
       rpc('entregar_pedido_web', { p_pedido: pedido, p_codigo: codigo, p_medio: medio || null, p_efectivo_recibido: efectivo === undefined ? null : efectivo }),

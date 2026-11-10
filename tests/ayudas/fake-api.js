@@ -39,6 +39,7 @@ export function crearFakeApi(opciones) {
     suscritos: [],
     pedidos: o.pedidos || [],
     suscritosPedidos: [],
+    tiendaWeb: o.tiendaWeb || { abierta: false, habilitada: true },
   };
   const red = () => { if (!s.red) throw new ErrorRed(); };
   const reg = (n, a) => s.llamadas.push([n, a]);
@@ -78,6 +79,13 @@ export function crearFakeApi(opciones) {
 
     // ---- Pedidos web. El código del cliente vive en _codigo (el servidor no lo manda al POS).
     async pedidosWebAbiertos() { red(); return copia(s.pedidos).map((p) => { delete p._codigo; return p; }); },
+    async estadoPedidosWeb() { red(); return copia(s.tiendaWeb); },
+    async fijarPedidosWeb(abierta) {
+      red(); reg('fijarPedidosWeb', abierta);
+      if (abierta && !s.tiendaWeb.habilitada) throw new ErrorServidor('Los pedidos web no están habilitados. Pídele al dueño que los habilite.');
+      s.tiendaWeb.abierta = abierta;
+      return copia(s.tiendaWeb);
+    },
     suscribirPedidosWeb(cb) { s.suscritosPedidos.push(cb); return () => {}; },
     async cambiarEstadoPedidoWeb(id, estado) {
       red(); reg('cambiarEstadoPedidoWeb', { id, estado });

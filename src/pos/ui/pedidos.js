@@ -21,8 +21,35 @@ export function crearVistaPedidos(ctx) {
   const vistos = new Set();
   let primera = true;
   let items = [];
+  let tienda = { abierta: false, habilitada: false };
 
-  el.append(h('div', { class: 'barra-vista' }, h('h2', null, 'Pedidos web')), lista);
+  const interruptor = h('div', { class: 'interruptor-pedidos', 'data-campo': 'interruptor' });
+  el.append(h('div', { class: 'barra-vista' }, h('h2', null, 'Pedidos web')), interruptor, lista);
+
+  // Interruptor en vivo: se enciende al abrir la tienda y se apaga al cerrar. No depende de un horario.
+  function pintarInterruptor() {
+    vaciar(interruptor);
+    const activo = tienda.abierta;
+    agregar(interruptor,
+      h('button', { type: 'button', class: 'btn ' + (activo ? 'btn-primario' : ''), 'data-accion': 'interruptor-pedidos', 'aria-pressed': activo ? 'true' : 'false',
+        disabled: !tienda.habilitada ? true : null, onclick: () => cambiarInterruptor(!activo) },
+      activo ? 'Recibiendo pedidos web: apagar' : 'Pedidos web apagados: encender'),
+      h('small', { 'data-campo': 'interruptor-texto' },
+        !tienda.habilitada ? 'El dueño debe habilitar los pedidos web.'
+          : activo ? 'Los clientes pueden pedir ahora. Apágalo al cerrar o si se agota algo; los pedidos ya hechos siguen.'
+            : 'Los clientes ven el menú pero no pueden pedir. Enciéndelo cuando la tienda esté abierta.'));
+  }
+
+  async function cambiarInterruptor(abierta) {
+    try {
+      const r = await ctx.api.fijarPedidosWeb(abierta);
+      tienda = { abierta: r.abierta, habilitada: r.habilitada };
+      ctx.avisar(r.abierta ? 'Pedidos web encendidos.' : 'Pedidos web apagados.', 'ok');
+    } catch (e) {
+      ctx.avisar(e.name === 'ErrorRed' ? 'Sin conexión. Inténtalo de nuevo.' : e.message, 'error');
+    }
+    pintarInterruptor();
+  }
 
   function pagoTexto(p) {
     if (p.metodo_pago === 'en_linea') return p.pago_en_linea_estado === 'pagado' ? 'Pagado en línea' : 'Pago en línea pendiente';
@@ -166,6 +193,8 @@ export function crearVistaPedidos(ctx) {
       return;
     }
     items = nuevos;
+    try { const t = await ctx.api.estadoPedidosWeb(); tienda = { abierta: !!t.abierta, habilitada: !!t.habilitada }; } catch (e) { /* conserva lo último */ }
+    pintarInterruptor();
     // Sonido solo para pedidos nuevos (no al abrir el turno); la alerta visual queda en la lista.
     let hayNuevo = false;
     for (const p of items) {
@@ -180,5 +209,6 @@ export function crearVistaPedidos(ctx) {
   }
 
   pintar();
+  pintarInterruptor();
   return { el, refrescar, items: () => items };
 }

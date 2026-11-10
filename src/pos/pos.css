@@ -181,3 +181,6 @@ label input, label select { margin-top: 4px; font-weight: 400; }
 .pedido-item .acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .marca.camino { background: var(--accent); color: #1c2a05; border-color: var(--accent); }
 .marca.web { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+.interruptor-pedidos { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.interruptor-pedidos small { flex: 1 1 220px; }

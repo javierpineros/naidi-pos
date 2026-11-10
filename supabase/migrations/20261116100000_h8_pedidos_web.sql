@@ -15,10 +15,8 @@ insert into public.reglas_negocio (clave, version, valor, descripcion, publica) 
      'Máximo de pedidos web abiertos (recibido, preparando o listo) por cuenta.', true),
   ('pedido_web.no_llego_alerta', 1, '3'::jsonb,
      'Al llegar a este número de pedidos marcados "No llegó", la cuenta se señala para que el dueño decida (prepago o bloqueo).', false),
-  ('pedido_web.ventana', 1, '{"min_anticipacion_min":20,"max_anticipacion_horas":24,"max_duracion_min":60}'::jsonb,
-     'Ventana de recogida: anticipación mínima y máxima, y duración máxima de la ventana.', true),
-  ('pedido_web.horario', 1, '{"abre":"10:00","cierra":"20:00"}'::jsonb,
-     'PROVISIONAL, por confirmar con Javier: horario (hora de Bogotá) dentro del que se puede elegir la ventana de recogida.', true),
+  ('pedido_web.ventana', 1, '{"min_anticipacion_min":20,"max_anticipacion_horas":3,"max_duracion_min":60}'::jsonb,
+     'Ventana de recogida: anticipación mínima y máxima (en horas; acota hasta cuándo se puede pedir), y duración máxima de la ventana.', true),
   ('pedido_web.pagos', 1, '{"al_recoger":true,"en_linea":true}'::jsonb,
      'Formas de pago ofrecidas en la tienda web. "en_linea" solo funciona además con la bandera pago_en_linea_bold encendida.', true),
   ('pedido_web.topping_cortesia', 1, '{"activo":true,"cantidad":1,"solo_primera_vez":false}'::jsonb,
@@ -26,6 +24,26 @@ insert into public.reglas_negocio (clave, version, valor, descripcion, publica) 
 
 -- =============================================================================================
 -- 2. Tablas
+-- Interruptor en vivo: el personal lo enciende mientras la tienda está abierta y lo apaga al cerrar (o si se agota algo).
+-- No depende de un horario fijo. Para recibir pedidos web deben estar encendidos la bandera pedidos_web (la habilita el
+-- dueño) y este interruptor (lo maneja cualquier persona del personal desde el POS). Apagarlo no afecta los pedidos ya hechos.
+-- ---------------------------------------------------------------------------------------------
+create table public.pedidos_web_interruptor (
+  id         smallint primary key check (id = 1),
+  abierta    boolean not null default false,
+  cambiado_por uuid references auth.users (id),
+  cambiado_en  timestamptz not null default now()
+);
+insert into public.pedidos_web_interruptor (id) values (1);
+alter table public.pedidos_web_interruptor enable row level security;
+revoke all on public.pedidos_web_interruptor from anon, authenticated;
+
+create function private.tienda_abierta() returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select private.bandera_activa('pedidos_web') and coalesce((select i.abierta from public.pedidos_web_interruptor i where i.id = 1), false);
+$$;
+
 -- =============================================================================================
 create table public.pedidos_web (
   id                   uuid primary key default gen_random_uuid(),
@@ -235,11 +253,11 @@ declare
   v_cort  jsonb := coalesce(private.regla_vigente('pedido_web.topping_cortesia'), '{}'::jsonb);
 begin
   return jsonb_build_object(
-    'abierta', private.bandera_activa('pedidos_web'),
+    'abierta', private.tienda_abierta(),
+    'habilitada', private.bandera_activa('pedidos_web'),
     'pagos', jsonb_build_object(
       'al_recoger', coalesce((v_pagos ->> 'al_recoger')::boolean, false),
       'en_linea', coalesce((v_pagos ->> 'en_linea')::boolean, false) and private.bandera_activa('pago_en_linea_bold')),
-    'horario', private.regla_vigente('pedido_web.horario'),
     'ventana', private.regla_vigente('pedido_web.ventana'),
     'max_abiertos', private.regla_vigente('pedido_web.max_abiertos'),
     'cortesia', jsonb_build_object('activo', coalesce((v_cort ->> 'activo')::boolean, false), 'cantidad', coalesce((v_cort ->> 'cantidad')::integer, 0)));
@@ -274,7 +292,6 @@ declare
   v_intento integer := 0;
   v_pagos   jsonb := coalesce(private.regla_vigente('pedido_web.pagos'), '{}'::jsonb);
   v_vent    jsonb := private.regla_vigente('pedido_web.ventana');
-  v_hor     jsonb := private.regla_vigente('pedido_web.horario');
   v_rest    text;
   v_item    jsonb;
   v_ord     smallint := 0;
@@ -298,8 +315,8 @@ begin
     return private.pedido_web_json(v_prev.id, true) || jsonb_build_object('repetido', true);
   end if;
 
-  if not private.bandera_activa('pedidos_web') then
-    raise exception 'La tienda en línea todavía no está abierta. Puedes pedir directamente en la tienda.';
+  if not private.tienda_abierta() then
+    raise exception 'Por ahora no estamos recibiendo pedidos en línea. Puedes pedir directamente en la tienda.';
   end if;
   if not private.tiene_consentimiento_datos(v_uid) then
     raise exception 'Antes de pedir debes aceptar el tratamiento de datos en tu cuenta.';
@@ -338,11 +355,6 @@ begin
   end if;
   if p_ventana_fin - p_ventana_inicio > make_interval(mins => (v_vent ->> 'max_duracion_min')::integer) then
     raise exception 'La ventana de recogida puede durar máximo % minutos.', v_vent ->> 'max_duracion_min';
-  end if;
-  if (p_ventana_inicio at time zone 'America/Bogota')::date <> (p_ventana_fin at time zone 'America/Bogota')::date
-     or (p_ventana_inicio at time zone 'America/Bogota')::time < (v_hor ->> 'abre')::time
-     or (p_ventana_fin at time zone 'America/Bogota')::time > (v_hor ->> 'cierra')::time then
-    raise exception 'Recogemos pedidos entre las % y las %. Elige otra hora.', v_hor ->> 'abre', v_hor ->> 'cierra';
   end if;
 
   if p_lineas is null or jsonb_typeof(p_lineas) <> 'array' or jsonb_array_length(p_lineas) = 0 then
@@ -620,6 +632,22 @@ begin
 end;
 $$;
 
+-- Interruptor de pedidos web: cualquier persona del personal lo enciende al abrir y lo apaga al cerrar.
+create function public.fijar_pedidos_web(p_abierta boolean) returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  perform private.exigir_staff();
+  if p_abierta is null then raise exception 'Indica si se reciben pedidos o no.'; end if;
+  if p_abierta and not private.bandera_activa('pedidos_web') then
+    raise exception 'Los pedidos web no están habilitados. Pídele al dueño que los habilite.';
+  end if;
+  update public.pedidos_web_interruptor set abierta = p_abierta, cambiado_por = (select auth.uid()), cambiado_en = now() where id = 1;
+  perform private.auditar('fijar_pedidos_web', 'pedidos_web', '1', jsonb_build_object('abierta', p_abierta));
+  return jsonb_build_object('abierta', private.tienda_abierta(), 'habilitada', private.bandera_activa('pedidos_web'));
+end;
+$$;
+
 -- Marca "Pedido web listo" junto al nombre en la lista de espera del POS.
 create or replace function public.lista_espera() returns jsonb
 language plpgsql stable security definer set search_path = ''
@@ -654,7 +682,7 @@ begin
     'public.pedidos_web_abiertos()', 'public.cambiar_estado_pedido_web(uuid,text)',
     'public.entregar_pedido_web(uuid,text,text,integer)', 'public.marcar_no_llego(uuid)',
     'public.cancelar_pedido_web(uuid,text)', 'public.restringir_pedidos_web(uuid,text,text,text)',
-    'public.lista_espera()'] loop
+    'public.lista_espera()', 'public.fijar_pedidos_web(boolean)'] loop
     execute format('revoke all on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated', f);
   end loop;
@@ -663,6 +691,7 @@ begin
   grant execute on function public.tienda_estado() to anon, authenticated;
   -- Los ayudantes internos no se exponen.
   revoke all on function private.evento_pedido_web(uuid, text, text, text) from public, anon, authenticated;
+  revoke all on function private.tienda_abierta() from public, anon, authenticated;
   revoke all on function private.codigo_pedido_web() from public, anon, authenticated;
   revoke all on function private.pedido_web_json(uuid, boolean) from public, anon, authenticated;
   revoke all on function private.pedidos_abiertos_de(uuid) from public, anon, authenticated;

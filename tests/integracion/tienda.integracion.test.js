@@ -39,21 +39,12 @@ async function codigoDelCorreo(correo) {
   throw new Error('No llegó el correo con el código a ' + correo);
 }
 
-// Mañana a las HH:MM en Bogotá (UTC-5 todo el año).
-function manana(hhmm) {
-  const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(Date.now() + 86400000));
-  return new Date(dia + 'T' + hhmm + ':00-05:00').toISOString();
-}
+// Dentro de `min` minutos (sin horario fijo: sirve a cualquier hora del día).
+const enMin = (min) => new Date(Date.now() + min * 60000).toISOString();
 
 beforeAll(async () => {
   env = leerEntorno();
   admin = createClient(env.API_URL, env.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-  // La anticipación máxima por defecto es de 24 h: se amplía (nueva versión de la regla) para poder pedir "mañana" a cualquier hora.
-  const vig = await admin.from('reglas_negocio').select('*').eq('clave', 'pedido_web.ventana').is('vigente_hasta', null).single();
-  await admin.from('reglas_negocio').update({ vigente_hasta: new Date().toISOString() }).eq('id', vig.data.id);
-  const ins = await admin.from('reglas_negocio').insert({ clave: 'pedido_web.ventana', version: vig.data.version + 1, valor: { ...vig.data.valor, max_anticipacion_horas: 72 },
-    descripcion: vig.data.descripcion, publica: true, vigente_desde: new Date().toISOString() });
-  if (ins.error) throw new Error(ins.error.message);
   const b = await admin.from('banderas').update({ activa: true }).eq('clave', 'pedidos_web');
   if (b.error) throw new Error(b.error.message);
 
@@ -65,11 +56,14 @@ beforeAll(async () => {
   const r = await cajeroSb.auth.signInWithPassword({ email: `cajero.tienda.${sufijo}@integracion.test`, password: pw });
   if (r.error) throw new Error(r.error.message);
   pos = crearApi(cajeroSb);
+  // El dueño habilita (bandera) y el personal enciende el interruptor al abrir la tienda.
+  await pos.fijarPedidosWeb(true);
   clienteSb = sesion();
   tienda = crearApiTienda(clienteSb, { origen: () => 'http://localhost' });
 }, 60000);
 
 afterAll(async () => {
+  await pos.fijarPedidosWeb(false);
   await admin.from('banderas').update({ activa: false }).eq('clave', 'pedidos_web');
 });
 
@@ -88,13 +82,13 @@ describe('tienda web contra la base real', () => {
     await tienda.verificarCodigo(correoCliente, await codigoDelCorreo(correoCliente));
     clienteId = (await tienda.sesion()).id;
     const p = await tienda.perfil();
-    await expect(tienda.crearPedido({ idem: crypto.randomUUID(), lineas: [{ producto: 'latte' }], ventanaInicio: manana('11:00'), ventanaFin: manana('11:30'), pago: 'al_recoger' }))
+    await expect(tienda.crearPedido({ idem: crypto.randomUUID(), lineas: [{ producto: 'latte' }], ventanaInicio: enMin(60), ventanaFin: enMin(90), pago: 'al_recoger' }))
       .rejects.toMatchObject({ message: expect.stringContaining('aceptar el tratamiento de datos') });
     await tienda.consentir('datos', p.privacidad_version, true);
     expect(await tienda.miTienda()).toMatchObject({ acepta_datos: true, cortesia_disponible: true, abiertos: 0, max_abiertos: 2, restriccion: null });
 
     const idem = crypto.randomUUID();
-    const args = { idem, lineas: [{ producto: 'amazonas', tamano: 'pequeno', toppings: ['miel'], cantidad: 1 }], ventanaInicio: manana('11:00'), ventanaFin: manana('11:30'), pago: 'al_recoger', cortesia: ['avena'], nota: 'sin canela' };
+    const args = { idem, lineas: [{ producto: 'amazonas', tamano: 'pequeno', toppings: ['miel'], cantidad: 1 }], ventanaInicio: enMin(60), ventanaFin: enMin(90), pago: 'al_recoger', cortesia: ['avena'], nota: 'sin canela' };
     pedido = await tienda.crearPedido(args);
     expect(pedido).toMatchObject({ estado: 'recibido', total_cop: 17800, repetido: false, nota: 'sin canela' });
     expect(pedido.codigo).toMatch(/^[A-HJKMNP-Z2-9]{4}$/);
