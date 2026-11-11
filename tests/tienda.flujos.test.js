@@ -38,19 +38,20 @@ describe('Tienda: menú y carrito', () => {
     expect($('[data-producto="amazonas"] [data-accion="elegir"]').disabled).toBe(true);
   });
 
-  it('arma un bowl, ve el precio con toppings y lo agrega al carrito', async () => {
+  it('un bowl del menú trae sus toppings definidos: solo se elige tamaño y cantidad', async () => {
     const { almacen } = await montar(crearFakeTienda());
     await click('[data-producto="amazonas"] [data-accion="elegir"]');
+    expect($$('[data-topping]')).toHaveLength(0);          // sin selector de toppings
+    expect($('[data-base]')).toBeNull();                    // ni de base
     await click('[data-tamano="pequeno"]');
-    await click('[data-topping="miel"]');
-    // Bowl del menú: el precio del tamaño más cada topping agregado (Pequeño $16.300 + miel $1.500).
-    expect(texto('[data-campo="precio-hoja"]')).toBe('$17.800');
+    expect(texto('[data-campo="precio-hoja"]')).toBe('$16.300');
     await click('[data-accion="mas"]');
-    expect(texto('[data-campo="precio-hoja"]')).toBe('$35.600');
+    expect(texto('[data-campo="precio-hoja"]')).toBe('$32.600');
     await click('[data-accion="agregar"]');
     expect($('[data-campo="hoja"]')).toBeNull();
-    expect(texto('[data-campo="total-pastilla"]')).toBe('$35.600');
+    expect(texto('[data-campo="total-pastilla"]')).toBe('$32.600');
     expect(JSON.parse(almacen.get('tienda.carrito'))).toHaveLength(1);
+    expect(JSON.parse(almacen.get('tienda.carrito'))[0].toppings).toEqual([]);
   });
 
   it('un café se agrega con un toque y el carrito sobrevive a una recarga', async () => {
@@ -74,6 +75,18 @@ describe('Tienda: menú y carrito', () => {
     for (const t of ['banano', 'fresa', 'mango', 'kiwi']) await click('[data-topping="' + t + '"]');
     // Mini $7.000 + el cuarto topping (kiwi $1.500)
     expect(texto('[data-campo="precio-hoja"]')).toBe('$8.500');
+  });
+
+  it('al elegir toppings en "Arma tu bowl" la hoja conserva su desplazamiento (no salta al inicio)', async () => {
+    await montar(crearFakeTienda());
+    await click('[data-producto="bowl-personalizado"] [data-accion="elegir"]');
+    // jsdom no calcula el diseño: se simula que la persona ya bajó dentro de la hoja
+    $('.hoja').scrollTop = 340;
+    await click('[data-topping="mango"]');
+    expect($('.hoja').scrollTop).toBe(340);
+    await click('[data-topping="kiwi"]');
+    expect($('.hoja').scrollTop).toBe(340);
+    expect($('[data-topping="kiwi"]').getAttribute('aria-pressed')).toBe('true');
   });
 });
 

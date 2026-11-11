@@ -209,13 +209,16 @@ export function crearTienda(cfg) {
           ? [h('h3', null, 'Base'), h('div', { class: 'chips' }, e.cat.lista.bases.map((b) =>
               h('button', { type: 'button', class: 'chip' + (x.base === b.clave ? ' activo' : ''), 'data-base': b.clave, onclick: () => { x.base = b.clave; repintar(); } }, b.nombre)))]
           : null,
-        h('h3', null, pr.tipo === 'personalizado' ? 'Toppings (' + incluidos + ' incluidos)' : 'Toppings extra (opcional)'),
-        h('div', { class: 'chips' }, e.cat.lista.toppings.map((t) => {
-          const idx = x.toppings.indexOf(t.clave);
-          return h('button', { type: 'button', class: 'chip' + (idx > -1 ? ' activo' : ''), 'data-topping': t.clave, 'aria-pressed': idx > -1 ? 'true' : 'false',
-            onclick: () => { if (idx > -1) x.toppings.splice(idx, 1); else x.toppings.push(t.clave); repintar(); } },
-          t.nombre + ' +' + fmtCop(t.precio_cop));
-        })),
+        // Solo "Arma tu bowl" deja elegir toppings; los bowls del menú ya traen los suyos definidos.
+        pr.tipo === 'personalizado'
+          ? [h('h3', null, 'Toppings (' + incluidos + ' incluidos)'),
+              h('div', { class: 'chips' }, e.cat.lista.toppings.map((t) => {
+                const idx = x.toppings.indexOf(t.clave);
+                return h('button', { type: 'button', class: 'chip' + (idx > -1 ? ' activo' : ''), 'data-topping': t.clave, 'aria-pressed': idx > -1 ? 'true' : 'false',
+                  onclick: () => { if (idx > -1) x.toppings.splice(idx, 1); else x.toppings.push(t.clave); repintar(); } },
+                t.nombre + ' +' + fmtCop(t.precio_cop));
+              }))]
+          : null,
         h('div', { class: 'cantidad' },
           h('button', { type: 'button', class: 'btn', 'data-accion': 'menos', 'aria-label': 'Menos', disabled: x.cantidad <= 1, onclick: () => { x.cantidad -= 1; repintar(); } }, '−'),
           h('strong', { class: 'mono', 'data-campo': 'cantidad' }, String(x.cantidad)),
@@ -532,6 +535,12 @@ export function crearTienda(cfg) {
 
   // ------------------------------------------------------------------ Armado
   function pintar() {
+    // Repintar reconstruye todo el DOM: se guarda y se restaura el desplazamiento para que, al elegir un topping,
+    // la hoja y la página no salten al inicio.
+    const hojaPrevia = raiz.querySelector ? raiz.querySelector('.hoja') : null;
+    const desplazaHoja = hojaPrevia ? hojaPrevia.scrollTop : 0;
+    const desplazaPagina = typeof window !== 'undefined' ? window.scrollY || 0 : 0;
+    const mismaPantalla = e.pantallaPintada === e.pantalla;
     vaciar(raiz);
     let pantalla;
     if (e.pantalla === 'cargando') pantalla = h('p', { class: 'cargando', role: 'status' }, 'Cargando…');
@@ -543,6 +552,10 @@ export function crearTienda(cfg) {
     else if (e.pantalla === 'pedidos') pantalla = pantallaPedidos();
     else pantalla = pantallaMenu();
     agregar(raiz, pantalla, e.hoja ? hoja() : null);
+    e.pantallaPintada = e.pantalla;
+    const hojaNueva = e.hoja && raiz.querySelector('.hoja');
+    if (hojaNueva && hojaPrevia) hojaNueva.scrollTop = desplazaHoja;
+    try { if (mismaPantalla && typeof window !== 'undefined' && window.scrollTo && desplazaPagina) window.scrollTo(0, desplazaPagina); } catch (x) { /* jsdom */ }
   }
 
   async function continuarConSesion() {
