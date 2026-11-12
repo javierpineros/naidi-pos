@@ -1,6 +1,8 @@
 // Armazón del panel del dueño: acceso (correo + código + segundo factor, solo rol dueño), pestañas y renovación periódica.
 import { h, vaciar, agregar } from '../lib/dom.js';
 import { montarAcceso } from '../pos/ui/acceso.js';
+import { pedirTexto, pedirPin } from '../pos/ui/modal.js';
+import { mensajePin } from '../pos/ui/caja.js';
 import { crearVistaAlertas } from './ui/alertas.js';
 import { crearVistaCuentas } from './ui/cuentas.js';
 import { crearVistaPantallas } from './ui/pantallas.js';
@@ -53,7 +55,40 @@ export function crearPanel(cfg) {
       h('strong', { class: 'marca-pos' }, 'Panel del dueño'),
       h('span', { class: 'relleno' }),
       h('span', { class: 'pequeno' }, estado.correo),
+      h('button', { type: 'button', class: 'btn', 'data-accion': 'mi-pin', onclick: () => fijarPin() }, 'Mi PIN'),
       h('button', { type: 'button', class: 'btn', 'data-accion': 'salir', onclick: salir }, 'Salir'));
+  }
+
+  // Crear o cambiar el PIN. Si ya hay uno, se pide el actual; el servidor cuenta los intentos fallidos.
+  async function fijarPin() {
+    let tiene;
+    try { tiene = await api.tengoPin(); } catch (e) { ctx.avisar(e.name === 'ErrorRed' ? 'Sin conexión: no puedo revisar tu PIN.' : e.message, 'error'); return; }
+    let actual = null;
+    if (tiene) {
+      actual = await pedirPin('PIN actual');
+      if (!actual) return;
+    }
+    const pedirNuevo = (titulo, etiqueta) => pedirTexto({ titulo, etiqueta, boton: 'Seguir', tipo: 'password', inputmode: 'numeric' });
+    const nuevo = await pedirNuevo(tiene ? 'Nuevo PIN' : 'Crea tu PIN', 'PIN nuevo (4 a 8 dígitos)');
+    if (!nuevo) return;
+    if (!/^[0-9]{4,8}$/.test(nuevo)) { ctx.avisar('El PIN debe tener entre 4 y 8 dígitos, solo números.', 'error'); return; }
+    const repetido = await pedirNuevo('Repite el PIN', 'Escríbelo otra vez');
+    if (!repetido) return;
+    if (repetido !== nuevo) { ctx.avisar('Los dos PIN no coinciden. No se cambió nada.', 'error'); return; }
+    let r;
+    try { r = await api.fijarPin(nuevo, actual); } catch (e) { ctx.avisar(e.message, 'error'); return; }
+    if (r && r.ok === false) { ctx.avisar(mensajePin(r), 'error'); return; }
+    avisoSinPin.hidden = true;
+    ctx.avisar(tiene ? 'PIN cambiado.' : 'PIN creado. Ya puedes usarlo en las decisiones sensibles.', 'ok');
+  }
+
+  // Sin PIN el panel no deja decidir nada sensible: se avisa de entrada, con el botón a mano.
+  const avisoSinPin = h('div', { class: 'tarjeta', 'data-zona': 'sin-pin' },
+    h('p', { class: 'alerta-texto' }, 'Aún no tienes un PIN.'),
+    h('p', { class: 'pequeno' }, 'Lo pide el panel para restringir cuentas y emitir o revocar pantallas.'),
+    h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'crear-pin', onclick: () => fijarPin() }, 'Crear mi PIN'));
+  async function revisarPin() {
+    try { avisoSinPin.hidden = await api.tengoPin(); } catch (e) { avisoSinPin.hidden = true; }
   }
 
   async function salir() {
@@ -80,7 +115,9 @@ export function crearPanel(cfg) {
     vaciar(principal);
     for (const v of Object.values(vistas)) principal.append(v.el);
     pintarCabecera();
-    vaciar(raiz).append(cabecera, nav, avisos, principal);
+    vaciar(raiz).append(cabecera, nav, avisos, avisoSinPin, principal);
+    avisoSinPin.hidden = true;
+    revisarPin();
     ctx.irA('alertas');
     // Las demás vistas cargan al abrirlas; aquí se trae lo que lleva número en su pestaña.
     await Promise.all([vistas.pagos.refrescar()]);

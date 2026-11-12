@@ -175,5 +175,26 @@ select is((select count(*) from vault.secrets where name in ('bold_conciliar_url
 select is(private.desprogramar_conciliacion_bold(), 'bold-conciliar desprogramada', 'se puede desprogramar');
 select is((select count(*) from cron.job where jobname = 'bold-conciliar'), 0::bigint, 'y la tarea desaparece');
 
+-- ---------------------------------------------------------------------------------------------
+-- 7. tengo_pin
+-- ---------------------------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, aud, role, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000011d1', 'authenticated', 'authenticated', 'dueno11b@prueba.test', '{}');
+insert into public.staff (user_id, rol, nombre) values ('00000000-0000-0000-0000-0000000011d1', 'dueno', 'Dueño Once B');
+select ok(not has_function_privilege('anon', 'public.tengo_pin()', 'execute'), 'anon no pregunta por el PIN');
+set local role authenticated;
+select pg_temp.como('00000000-0000-0000-0000-0000000011d1', 'aal1');
+select throws_ok($$select public.tengo_pin()$$, '42501', null, 'el dueño sin segundo factor no pregunta');
+select pg_temp.como('00000000-0000-0000-0000-0000000011ca');
+select throws_ok($$select public.tengo_pin()$$, '42501', null, 'el cajero tampoco');
+select pg_temp.como('00000000-0000-0000-0000-0000000011d1');
+select is(public.tengo_pin(), false, 'un dueño sin PIN: dice que no');
+select is(public.fijar_pin('2468') ->> 'ok', 'true', 'fija su PIN');
+select is(public.tengo_pin(), true, 'y ahora dice que sí');
+select pg_temp.como('00000000-0000-0000-0000-0000000011d0');
+select is(public.tengo_pin(), true, 'el otro dueño ya tenía el suyo');
+reset role;
+
 select * from finish();
 rollback;

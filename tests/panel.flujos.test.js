@@ -20,7 +20,7 @@ function crearFakePanel(opciones) {
     nivel: o.nivel || 'aal2',
     factor: o.factor || null,
     activo: true,
-    pin: o.pin || '4321',
+    pin: o.pin === null ? null : (o.pin || '4321'),
     alertas: o.alertas || [],
     resueltas: o.resueltas || [],
     cuentas: o.cuentas || [],
@@ -43,6 +43,13 @@ function crearFakePanel(opciones) {
     async mfaVerificar() { s.nivel = 'aal2'; },
     async miPerfilDePersonal() { return s.activo ? { rol: s.rol, nombre: 'Persona', activo: true } : null; },
     async salir() { reg('salir'); s.sesion = null; },
+    async tengoPin() { red(); return s.pin !== null; },
+    async fijarPin(nuevo, actual) {
+      red(); reg('fijarPin', [nuevo, actual]);
+      if (s.pin !== null && actual !== s.pin) return pinMal();
+      s.pin = nuevo;
+      return { ok: true };
+    },
     async listaAlertas(resueltas) { red(); reg('listaAlertas', !!resueltas); return copia(resueltas ? s.resueltas : s.alertas); },
     async resolverAlerta(id, nota) {
       red(); reg('resolverAlerta', [id, nota]);
@@ -150,6 +157,79 @@ describe('Panel: acceso', () => {
     await esperar(6);
     expect($('[data-campo="correo"]')).not.toBeNull();
     expect(texto('.titulo')).toBe('Panel Naidi');
+  });
+});
+
+describe('Panel: PIN del dueño', () => {
+  it('sin PIN lo avisa de entrada; con PIN no muestra el aviso', async () => {
+    const sin = crearFakePanel({ pin: null });
+    await entrar(sin);
+    expect($('[data-zona="sin-pin"]').hidden).toBe(false);
+    expect(texto('[data-zona="sin-pin"]')).toContain('Aún no tienes un PIN');
+    const con = crearFakePanel();
+    await entrar(con);
+    expect($('[data-zona="sin-pin"]').hidden).toBe(true);
+  });
+
+  it('crear el PIN pide el nuevo dos veces, no pide el actual y esconde el aviso', async () => {
+    const api = crearFakePanel({ pin: null });
+    await entrar(api);
+    await click('[data-accion="crear-pin"]');
+    await responder('2468');
+    await responder('2468');
+    expect(api._s.llamadas.filter((l) => l[0] === 'fijarPin')[0][1]).toEqual(['2468', null]);
+    expect(texto('.avisos')).toContain('PIN creado');
+    expect($('[data-zona="sin-pin"]').hidden).toBe(true);
+    expect(api._s.pin).toBe('2468');
+  });
+
+  it('cambiar el PIN pide primero el actual', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await click('[data-accion="mi-pin"]');
+    await responder('4321');
+    await responder('9753');
+    await responder('9753');
+    expect(api._s.llamadas.filter((l) => l[0] === 'fijarPin')[0][1]).toEqual(['9753', '4321']);
+    expect(texto('.avisos')).toContain('PIN cambiado');
+  });
+
+  it('con el PIN actual equivocado avisa los intentos que quedan y no cambia nada', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await click('[data-accion="mi-pin"]');
+    await responder('0000');
+    await responder('9753');
+    await responder('9753');
+    expect(texto('.avisos')).toContain('PIN incorrecto');
+    expect(api._s.pin).toBe('4321');
+  });
+
+  it('un PIN que no son 4 a 8 dígitos ni se envía', async () => {
+    const api = crearFakePanel({ pin: null });
+    await entrar(api);
+    await click('[data-accion="crear-pin"]');
+    await responder('12');
+    expect(texto('.avisos')).toContain('entre 4 y 8 dígitos');
+    expect(api._s.llamadas.some((l) => l[0] === 'fijarPin')).toBe(false);
+  });
+
+  it('si los dos PIN no coinciden no cambia nada', async () => {
+    const api = crearFakePanel({ pin: null });
+    await entrar(api);
+    await click('[data-accion="crear-pin"]');
+    await responder('2468');
+    await responder('2469');
+    expect(texto('.avisos')).toContain('no coinciden');
+    expect(api._s.pin).toBeNull();
+  });
+
+  it('cancelar en cualquier paso no cambia nada', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await click('[data-accion="mi-pin"]');
+    await click('[data-accion="cancelar-texto"]');
+    expect(api._s.llamadas.some((l) => l[0] === 'fijarPin')).toBe(false);
   });
 });
 

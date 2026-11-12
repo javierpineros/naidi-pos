@@ -28,6 +28,10 @@ export function crearApiPanel(client) {
     miPerfilDePersonal: base.miPerfilDePersonal,
     salir: base.salir,
 
+    // ---- PIN del dueño. fijarPin devuelve { ok:false, error } si el PIN actual falla.
+    tengoPin: () => rpc('tengo_pin'),
+    fijarPin: (nuevo, actual) => rpc('fijar_pin', { p_nuevo: nuevo, p_actual: actual || null }),
+
     // ---- Alertas y cuentas
     listaAlertas: (resueltas) => rpc('lista_alertas', { p_resueltas: !!resueltas }),
     resolverAlerta: (id, nota) => rpc('resolver_alerta', { p_id: id, p_nota: nota }),
