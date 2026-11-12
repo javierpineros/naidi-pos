@@ -144,7 +144,7 @@ export function crearVistaPedidos(ctx) {
     }
     recibido.addEventListener('input', pintarCambio);
     const zonaPago = h('div', { class: 'pago-pedido' });
-    const confirmarBtn = h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'confirmar-entrega' }, 'Entregar y cobrar');
+    const confirmarBtn = h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'confirmar-entrega' }, enLinea ? 'Entregar' : 'Entregar y cobrar');
     let ocupado = false;
 
     function pintarPago() {

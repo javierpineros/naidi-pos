@@ -86,6 +86,7 @@ describe('POS: pedidos web', () => {
     await entrarComoPersonal(api);
     await click('[data-pestana="pedidos"]');
     await click('[data-accion="entregar"]');
+    expect(texto('[data-accion="confirmar-entrega"]')).toBe('Entregar y cobrar');   // al recoger sí se cobra
     await escribir('[data-campo="codigo-pedido"]', 'zzzz');
     await escribir('[data-campo="efectivo-pedido"]', '30000');
     await click('[data-accion="confirmar-entrega"]');
@@ -135,6 +136,7 @@ describe('POS: pedidos web', () => {
     expect($('[data-accion="cancelar"]')).toBeNull();
     await click('[data-accion="entregar"]');
     expect($('[data-medio]')).toBeNull();
+    expect(texto('[data-accion="confirmar-entrega"]')).toBe('Entregar');          // ya está pagado: no se cobra
     await escribir('[data-campo="codigo-pedido"]', 'K7P2');
     await click('[data-accion="confirmar-entrega"]');
     const llamada = api._s.llamadas.filter((l) => l[0] === 'entregarPedidoWeb').pop()[1];
