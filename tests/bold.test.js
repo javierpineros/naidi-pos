@@ -283,6 +283,33 @@ describe('Bold: conciliación', () => {
     expect(aplicadas[0].args).toMatchObject({ p_evento_id: 'conciliacion:NW1-a:SALE_APPROVED', p_tipo: 'SALE_APPROVED', p_monto: 4000 });
   });
 
+  it('deja constancia de cada corrida con el conteo por resultado, incluso sin pendientes', async () => {
+    const fetchFalso = async (url) => (url.endsWith('NW1-a')
+      ? new Response(JSON.stringify({ payment_status: 'APPROVED', payment_id: 'bp-7', amount: { total: 4000 } }), { status: 200 })
+      : new Response('{}', { status: 404 }));
+    const con = depsFalsas({
+      fetch: fetchFalso,
+      respuestas: { pagos_bold_por_conciliar: { data: [{ order_id: 'NW1-a' }, { order_id: 'NW2-b' }, { order_id: 'NW3-c' }], error: null } },
+    });
+    await manejarConciliacion(llamar('tok-123'), con.deps);
+    const reg = con.llamadas.filter((l) => l.nombre === 'registrar_conciliacion_bold');
+    expect(reg).toHaveLength(1);
+    expect(reg[0].args).toEqual({ p_revisados: 3, p_resumen: { aprobado: 1, sin_voucher_404: 2 } });
+    expect(JSON.stringify(reg[0].args)).not.toContain('NW1');
+
+    const sin = depsFalsas({ respuestas: { pagos_bold_por_conciliar: { data: [], error: null } } });
+    const r = await manejarConciliacion(llamar('tok-123'), sin.deps);
+    expect(r.status).toBe(200);
+    expect(sin.llamadas.filter((l) => l.nombre === 'registrar_conciliacion_bold')[0].args).toEqual({ p_revisados: 0, p_resumen: {} });
+  });
+
+  it('si no se puede registrar la corrida, la conciliación igual responde bien', async () => {
+    const { deps } = depsFalsas({ respuestas: { pagos_bold_por_conciliar: { data: [], error: null } } });
+    const base = deps.clienteServicio.rpc;
+    deps.clienteServicio.rpc = async (n, a) => { if (n === 'registrar_conciliacion_bold') throw new Error('caído'); return base(n, a); };
+    expect((await manejarConciliacion(llamar('tok-123'), deps)).status).toBe(200);
+  });
+
   it('una caída de red con Bold no tumba el resto', async () => {
     const { deps } = depsFalsas({
       fetch: async () => { throw new Error('sin red'); },
