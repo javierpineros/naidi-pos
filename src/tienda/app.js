@@ -37,7 +37,7 @@ export function crearTienda(cfg) {
     carrito: [], hoja: null, pedidos: [], idem: uuid(), error: '', aviso: '', ocupado: false,
     paso: 'correo', correo: '', volverA: 'menu', temporizador: null,
     form: { slot: '', pago: '', cortesia: [], nota: '' }, nuevo: null,
-    pagos: {}, volviendoDePago: false, estadoRetorno: '', ultimaVerificacion: {},
+    pagos: {}, volviendoDePago: false, estadoRetorno: '', pedidoRetorno: '', ultimaVerificacion: {}, revisados: {},
   };
   const leerBusqueda = cfg.leerBusqueda || (() => (typeof window === 'undefined' ? '' : window.location.search));
 
@@ -157,7 +157,11 @@ export function crearTienda(cfg) {
     if (!e.carrito.length) return null;
     return h('div', { class: 'pastilla-carrito' },
       h('span', null, cuantos() + (cuantos() === 1 ? ' producto' : ' productos') + ' · ', h('strong', { class: 'mono', 'data-campo': 'total-pastilla' }, fmtCop(totalCarrito()))),
-      h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'ver-carrito', onclick: () => { e.pantalla = 'carrito'; prepararFormulario(); pintar(); } }, 'Ver pedido'));
+      h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'ver-carrito', onclick: () => {
+        e.pantalla = 'carrito'; prepararFormulario(); pintar();
+        // Los pedidos abiertos pudieron cerrarse (entregados) desde que se cargó la página: se consulta de nuevo.
+        refrescarMia().then((cambio) => { if (cambio && e.pantalla === 'carrito') pintar(); });
+      } }, 'Ver pedido'));
   }
 
   // ------------------------------------------------------------------ Hoja de producto
@@ -379,14 +383,16 @@ export function crearTienda(cfg) {
     const errorEl = h('p', { class: 'error', role: 'alert' });
     const acciones = [];
     // Pago pendiente: lo primero de la tarjeta es el botón de Bold (no el código ni el QR, que solo sirven una vez pagado).
-    const aprobadoEnBold = e.volviendoDePago && /^approved$/i.test(e.estadoRetorno);
+    // El retorno de Bold (?bold-order-id=NW<número>-…) solo habla del pedido que se acaba de pagar, no de los demás pendientes.
+    const vuelveEste = e.volviendoDePago && (!e.pedidoRetorno || e.pedidoRetorno === String(p.numero));
+    const aprobadoEnBold = vuelveEste && /^approved$/i.test(e.estadoRetorno);
     const bloquePago = porPagar ? h('section', { class: 'pago-pendiente', 'data-campo': 'pago-pendiente' },
       h('h3', null, 'Falta pagar ', h('span', { class: 'mono' }, fmtCop(p.total_cop))),
       aprobadoEnBold
-        ? h('p', { class: 'aviso', role: 'status', 'data-campo': 'pago-confirmando' }, 'Bold nos dice que tu pago fue aprobado. Estamos esperando la confirmación; esta página se actualiza sola.')
-        : e.volviendoDePago
-          ? h('p', { class: 'aviso error', role: 'status', 'data-campo': 'pago-no-completado' }, 'No vimos un pago aprobado todavía. Si ya pagaste, espera un momento; si no, puedes intentarlo de nuevo.')
-          : h('p', { class: 'pequeno' }, 'Toca el botón para pagar con tarjeta, PSE, Nequi o Bancolombia. Empezamos a preparar tu pedido cuando se confirme el pago.'),
+        ? h('p', { class: 'aviso', role: 'status', 'data-campo': 'pago-confirmando' }, 'Recibimos tu pago y lo estamos confirmando. No lo vuelvas a pagar; esta página se actualiza sola.')
+        : vuelveEste
+          ? h('p', { class: 'aviso error', role: 'status', 'data-campo': 'pago-no-completado' }, 'Todavía no vemos un pago aprobado para este pedido. Si ya pagaste, espera un momento y no vuelvas a pagar; si no, toca "Pagar ahora".')
+          : h('p', { class: 'pequeno' }, 'Toca el botón para pagar con tarjeta, PSE, Nequi o Bancolombia. Empezamos a preparar tu pedido cuando se confirme el pago. Si ya pagaste, espera un momento y no vuelvas a pagar.'),
       e.pagos[p.id] || null,
       !e.pagos[p.id] ? h('button', { type: 'button', class: aprobadoEnBold ? 'btn btn-texto' : 'btn btn-primario', 'data-accion': 'pagar-ahora', onclick: () => iniciarPago(p, errorEl) },
         aprobadoEnBold ? '¿No terminaste de pagar? Intentar de nuevo' : 'Pagar ahora') : null) : null;
@@ -440,6 +446,16 @@ export function crearTienda(cfg) {
         h('button', { type: 'button', class: 'btn btn-texto', 'data-accion': 'salir', onclick: salir }, 'Salir')));
   }
 
+  // Lo propio de la cuenta para pedir (pedidos abiertos, cortesía, restricción). Devuelve true si cambió algo.
+  async function refrescarMia() {
+    if (!e.sesion || !e.perfil || !e.perfil.acepta_datos) return false;
+    try {
+      const antes = JSON.stringify(e.mia);
+      e.mia = await api.miTienda();
+      return antes !== JSON.stringify(e.mia);
+    } catch (x) { return false; }   // sin conexión: se conserva lo último que se sabía
+  }
+
   async function refrescarPedidos() {
     try {
       e.pedidos = (await api.misPedidos()) || [];
@@ -447,6 +463,7 @@ export function crearTienda(cfg) {
     } catch (x) {
       e.error = mensajeError(x);
     }
+    await refrescarMia();
     if (e.pantalla === 'pedidos') pintar();
   }
 
@@ -456,6 +473,7 @@ export function crearTienda(cfg) {
     await refrescarPedidos();
     iniciarSondeo();
     pintar();
+    if (!e.volviendoDePago) verificarPagos().then(refrescarPedidos);   // al volver de Bold ya se verifica aparte
   }
 
   // Si la persona ya intentó pagar (o volvió de Bold) y el pago sigue pendiente, se le pregunta a Bold por el estado real
@@ -464,7 +482,12 @@ export function crearTienda(cfg) {
     const t = ahora().getTime();
     for (const p of e.pedidos) {
       const pend = p.metodo_pago === 'en_linea' && p.pago_en_linea_estado === 'pendiente' && ABIERTOS.includes(p.estado);
-      if (!pend || !(e.volviendoDePago || e.pagos[p.id])) continue;
+      if (!pend) continue;
+      // Cada pedido pendiente se revisa al menos una vez al abrir "Mis pedidos": la persona pudo pagar en Bold y cerrar la
+      // pestaña sin volver (ese intento no se ve desde aquí). Sin intento de pago el servidor no consulta a Bold.
+      const intentoEnSesion = e.volviendoDePago || e.pagos[p.id];
+      if (!intentoEnSesion && e.revisados[p.id]) continue;
+      e.revisados[p.id] = true;
       if (t - (e.ultimaVerificacion[p.id] || 0) < 8000) continue;
       e.ultimaVerificacion[p.id] = t;
       try { await api.verificarPagoBold(p.id); } catch (x) { /* el sondeo normal sigue */ }
@@ -555,7 +578,12 @@ export function crearTienda(cfg) {
     e.pantallaPintada = e.pantalla;
     const hojaNueva = e.hoja && raiz.querySelector('.hoja');
     if (hojaNueva && hojaPrevia) hojaNueva.scrollTop = desplazaHoja;
-    try { if (mismaPantalla && typeof window !== 'undefined' && window.scrollTo && desplazaPagina) window.scrollTo(0, desplazaPagina); } catch (x) { /* jsdom */ }
+    try {
+      if (typeof window !== 'undefined' && window.scrollTo) {
+        if (mismaPantalla) { if (desplazaPagina) window.scrollTo(0, desplazaPagina); }
+        else window.scrollTo(0, 0);   // pantalla nueva: se empieza arriba; si no, el navegador conserva el desplazamiento de la anterior y tapa los títulos
+      }
+    } catch (x) { /* jsdom */ }
   }
 
   async function continuarConSesion() {
@@ -605,6 +633,8 @@ export function crearTienda(cfg) {
       e.volviendoDePago = true;
       const m = /[?&]bold-tx-status=([^&]*)/.exec(leerBusqueda());
       e.estadoRetorno = m ? decodeURIComponent(m[1]) : '';
+      const n = /[?&]bold-order-id=NW(\d+)-/.exec(leerBusqueda());
+      e.pedidoRetorno = n ? n[1] : '';
       await abrirPedidos();
       await verificarPagos();
       await refrescarPedidos();

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { crearFakeTienda } from './ayudas/fake-tienda.js';
 import { crearTienda } from '../src/tienda/app.js';
 import { esperar, click, escribir, texto, $, $$ } from './ayudas/montar.js';
@@ -87,6 +87,21 @@ describe('Tienda: menú y carrito', () => {
     await click('[data-topping="kiwi"]');
     expect($('.hoja').scrollTop).toBe(340);
     expect($('[data-topping="kiwi"]').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('Tienda: desplazamiento entre pantallas', () => {
+  it('al pasar del menú a "Tu pedido" la página empieza arriba (no deja tapado "¿Cuándo lo recoges?")', async () => {
+    await montar(crearFakeTienda());
+    await agregarBowl();
+    const antes = window.scrollTo;
+    const espia = vi.fn();
+    window.scrollTo = espia;
+    try {
+      await click('[data-accion="ver-carrito"]');
+      expect(texto('h1')).toBe('Tu pedido');
+      expect(espia).toHaveBeenCalledWith(0, 0);
+    } finally { window.scrollTo = antes; }
   });
 });
 
@@ -209,6 +224,17 @@ describe('Tienda: pedir', () => {
     await click('[data-accion="ver-carrito"]');
     expect(texto('main')).toContain('Ya tienes 2 pedido(s) abierto(s)');
     expect($('[data-accion="pedir"]').disabled).toBe(true);
+  });
+
+  it('si los pedidos abiertos se entregaron mientras la página seguía abierta, el aviso de tope desaparece al abrir "Tu pedido"', async () => {
+    const api = crearFakeTienda({ sesion: SESION, mia: { abiertos: 2 } });
+    await montar(api);                                   // al entrar, la cuenta tenía 2 abiertos
+    api._s.mia.abiertos = 0;                             // el POS los entregó después
+    await agregarBowl();
+    await click('[data-accion="ver-carrito"]');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(texto('main')).not.toContain('pedido(s) abierto(s)');
+    expect($('[data-accion="pedir"]').disabled).toBe(false);
   });
 
   it('una cuenta bloqueada no puede pedir y una de prepago solo ve el pago en línea', async () => {
@@ -360,7 +386,7 @@ describe('Tienda: pago en línea con Bold', () => {
   it('al volver de Bold avisa que está confirmando el pago, sin darlo por hecho', async () => {
     const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
     await montar(api, { leerBusqueda: () => '?bold-order-id=NW5-abc&bold-tx-status=approved' });
-    expect(texto('[data-campo="pago-confirmando"]')).toContain('Bold nos dice que tu pago fue aprobado');
+    expect(texto('[data-campo="pago-confirmando"]')).toContain('Recibimos tu pago y lo estamos confirmando');
     expect($('[data-campo="pago-confirmado"]')).toBeNull();                          // la redirección no es prueba de pago
     expect(api._s.llamadas.some((l) => l[0] === 'verificarPagoBold')).toBe(true);    // pero se le pregunta a Bold por el estado real
     expect(texto('[data-accion="pagar-ahora"]')).toContain('Intentar de nuevo');     // discreto: ya pagó, solo por si no terminó
@@ -379,7 +405,39 @@ describe('Tienda: pago en línea con Bold', () => {
   it('si Bold devuelve un pago no aprobado lo dice y deja intentar de nuevo', async () => {
     const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
     await montar(api, { leerBusqueda: () => '?bold-order-id=NW5-abc&bold-tx-status=rejected' });
-    expect(texto('[data-campo="pago-no-completado"]')).toContain('No vimos un pago aprobado');
+    expect(texto('[data-campo="pago-no-completado"]')).toContain('Todavía no vemos un pago aprobado');
+    expect(texto('[data-campo="pago-no-completado"]')).toContain('no vuelvas a pagar');
+    expect(texto('[data-accion="pagar-ahora"]')).toBe('Pagar ahora');
+  });
+
+  it('el aviso de retorno de Bold solo aparece en el pedido que volvió, no en otro pendiente', async () => {
+    const otro = enLinea({ id: 'pw-6', numero: 6, codigo: 'ZZ99' });
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea(), otro] });
+    await montar(api, { leerBusqueda: () => '?bold-order-id=NW5-abc&bold-tx-status=approved' });
+    const tarjetaOtro = $('[data-pedido="pw-6"]');
+    expect(tarjetaOtro.querySelector('[data-campo="pago-confirmando"]')).toBeNull();
+    expect(tarjetaOtro.querySelector('[data-campo="pago-no-completado"]')).toBeNull();
+    expect(tarjetaOtro.querySelector('[data-accion="pagar-ahora"]').textContent).toBe('Pagar ahora');
+    expect($('[data-pedido="pw-5"] [data-campo="pago-confirmando"]')).not.toBeNull();
+  });
+
+  it('si pagó en Bold y cerró sin volver, al abrir Mis pedidos se pregunta a Bold y queda pagado', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
+    api._s.boldAprobado = true;                          // pagó en Bold, pero la tienda no se enteró
+    await montar(api);                                   // entra a la tienda normal, sin parámetros de retorno
+    await click('[data-accion="mis-pedidos"]');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(api._s.llamadas.filter((l) => l[0] === 'verificarPagoBold')).toHaveLength(1);
+    expect(texto('[data-campo="pago-confirmado"]')).toContain('Pago confirmado');
+    expect($('[data-accion="pagar-ahora"]')).toBeNull();
+  });
+
+  it('mientras el pago sigue pendiente avisa, antes del botón, que no vuelva a pagar si ya pagó', async () => {
+    const api = crearFakeTienda({ sesion: SESION, estado: ESTADO, pedidos: [enLinea()] });
+    await montar(api);
+    await click('[data-accion="mis-pedidos"]');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(texto('[data-campo="pago-pendiente"]')).toContain('Si ya pagaste, espera un momento y no vuelvas a pagar');
     expect(texto('[data-accion="pagar-ahora"]')).toBe('Pagar ahora');
   });
 
