@@ -139,6 +139,10 @@ describe('POS: pedidos web', () => {
     expect(texto('[data-accion="confirmar-entrega"]')).toBe('Entregar');          // ya está pagado: no se cobra
     await escribir('[data-campo="codigo-pedido"]', 'K7P2');
     await click('[data-accion="confirmar-entrega"]');
+    // La confirmación no dice "cobrado" ni muestra la palabra "null" donde no hay cambio que devolver.
+    expect(texto('[data-campo="entrega-ok"]')).toBe('Pedido #7 entregado.');
+    expect(texto('.modal-caja')).not.toContain('null');
+    expect(texto('.modal-caja')).not.toContain('undefined');
     const llamada = api._s.llamadas.filter((l) => l[0] === 'entregarPedidoWeb').pop()[1];
     expect(llamada.medio).toBeNull();
     expect(texto('[data-campo="estado"]')).toBe('Entregado');

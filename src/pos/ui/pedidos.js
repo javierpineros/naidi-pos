@@ -173,8 +173,9 @@ export function crearVistaPedidos(ctx) {
       try {
         const r = await ctx.api.entregarPedidoWeb(p.id, cod, enLinea ? null : medio, efectivo);
         // Confirmación fija (no un aviso que desaparece): el vendedor ve el cambio a devolver antes de cerrar.
-        vaciar(m.cuerpo).append(
-          h('p', { class: 'ok', role: 'status', 'data-campo': 'entrega-ok' }, 'Pedido #' + p.numero + ' entregado y cobrado.'),
+        // agregar() omite lo que sea null: el append nativo escribiría la palabra "null" cuando no hay cambio ni puntos.
+        agregar(vaciar(m.cuerpo),
+          h('p', { class: 'ok', role: 'status', 'data-campo': 'entrega-ok' }, 'Pedido #' + p.numero + ' entregado' + (enLinea ? '.' : ' y cobrado.')),
           r.cambio_cop ? h('p', { class: 'cambio-grande', 'data-campo': 'cambio-final' }, 'Devuelve ', h('strong', { class: 'mono' }, fmtCop(r.cambio_cop))) : null,
           r.puntos_acreditados ? h('p', { class: 'pequeno' }, 'Puntos acreditados al cliente: ' + r.puntos_acreditados) : null,
           h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'cerrar-entrega', onclick: () => m.cerrar() }, 'Listo')));
