@@ -90,6 +90,26 @@ describe('Tienda: menú y carrito', () => {
   });
 });
 
+describe('Tienda: fotos de los productos', () => {
+  it('cada tarjeta con foto muestra su imagen decorativa y la que no tiene foto queda sin imagen', async () => {
+    await montar(crearFakeTienda());
+    const foto = (clave) => $('[data-producto="' + clave + '"] img.producto-foto');
+    expect(foto('amazonas').getAttribute('src')).toBe('/img/productos/amazonas.webp');
+    expect(foto('fruta-intensa').getAttribute('src')).toBe('/img/productos/frutal.webp');   // la clave y el archivo pueden diferir
+    expect(foto('latte').getAttribute('src')).toBe('/img/productos/latte.webp');
+    expect(foto('amazonas').getAttribute('alt')).toBe('');                                  // decorativa: el nombre está al lado
+    expect(foto('bowl-personalizado')).toBeNull();
+  });
+
+  it('si una foto no carga se quita y la tarjeta sigue usable', async () => {
+    await montar(crearFakeTienda());
+    const img = $('[data-producto="selva"] img.producto-foto');
+    img.dispatchEvent(new Event('error'));
+    expect($('[data-producto="selva"] img.producto-foto')).toBeNull();
+    expect($('[data-producto="selva"] [data-accion="elegir"]')).not.toBeNull();
+  });
+});
+
 describe('Tienda: desplazamiento entre pantallas', () => {
   it('al pasar del menú a "Tu pedido" la página empieza arriba (no deja tapado "¿Cuándo lo recoges?")', async () => {
     await montar(crearFakeTienda());

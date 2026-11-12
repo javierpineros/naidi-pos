@@ -56,6 +56,8 @@ label { display: block; margin: 12px 0; font-weight: 600; font-size: 0.9rem; }
 
 .productos { display: grid; gap: 10px; }
 .producto { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+.producto-foto { flex: none; width: 72px; height: 72px; object-fit: cover; border-radius: 12px; background: var(--border); }
+.producto-texto { flex: 1 1 auto; min-width: 0; }
 .producto h3 { margin: 0 0 4px; }
 .producto .precio { margin: 4px 0 0; color: var(--brand); font-weight: 700; }
 

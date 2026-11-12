@@ -128,6 +128,9 @@ export function crearTienda(cfg) {
   // ------------------------------------------------------------------ Menú
   function tarjetaProducto(pr) {
     return h('li', { class: 'producto', 'data-producto': pr.clave },
+      // La foto es decorativa (el nombre va al lado). Si no carga, se quita y la tarjeta queda como antes.
+      pr.foto ? h('img', { class: 'producto-foto', src: '/img/productos/' + pr.foto + '.webp', alt: '', width: '72', height: '72', loading: 'lazy', decoding: 'async',
+        onerror: (ev) => { if (ev.target && ev.target.parentNode) ev.target.parentNode.removeChild(ev.target); } }) : null,
       h('div', { class: 'producto-texto' },
         h('h3', null, pr.nombre),
         pr.descripcion ? h('p', { class: 'pequeno' }, pr.descripcion) : null,
