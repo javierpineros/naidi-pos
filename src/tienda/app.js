@@ -125,12 +125,47 @@ export function crearTienda(cfg) {
     }
   }
 
+  // ------------------------------------------------------------------ Foto ampliada
+  // Hay versión grande para los bowls y el litro; los cafés se amplían desde su miniatura. Va fuera de la raíz para que
+  // repintar la pantalla no la cierre, y se cierra con la X, tocando el fondo o con Esc.
+  const FOTOS_GRANDES = ['amazonas', 'carioca', 'selva', 'cacao', 'fit', 'manaos', 'tucano', 'frutal', 'litro'];
+  function cerrarFoto() {
+    const f = e.foto;
+    if (!f) return;
+    e.foto = null;
+    document.removeEventListener('keydown', f.tecla);
+    if (f.fondo.parentNode) f.fondo.parentNode.removeChild(f.fondo);
+    document.body.style.overflow = f.desplazamientoPrevio;
+    if (f.disparador && f.disparador.isConnected && f.disparador.focus) f.disparador.focus();   // devuelve el foco a la miniatura
+  }
+  function abrirFoto(pr, disparador) {
+    cerrarFoto();
+    const miniatura = '/img/productos/' + pr.foto + '.webp';
+    const grande = FOTOS_GRANDES.indexOf(pr.foto) > -1 ? '/img/productos/zoom/' + pr.foto + '.webp' : miniatura;
+    const cerrar = h('button', { type: 'button', class: 'foto-cerrar', 'data-accion': 'cerrar-foto', 'aria-label': 'Cerrar foto', onclick: cerrarFoto }, '×');
+    const fondo = h('div', { class: 'foto-fondo', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Foto de ' + pr.nombre, 'data-campo': 'foto-ampliada',
+      onclick: (ev) => { if (ev.target === fondo) cerrarFoto(); } },
+      h('figure', { class: 'foto-caja' },
+        h('img', { class: 'foto-grande', src: grande, alt: pr.nombre,
+          onerror: (ev) => { if (ev.target.getAttribute('src') !== miniatura) ev.target.setAttribute('src', miniatura); } }),
+        h('figcaption', null, pr.nombre)),
+      cerrar);
+    const tecla = (ev) => { if (ev.key === 'Escape' || ev.key === 'Esc') cerrarFoto(); };
+    document.addEventListener('keydown', tecla);
+    e.foto = { fondo, tecla, disparador, desplazamientoPrevio: document.body.style.overflow };
+    document.body.style.overflow = 'hidden';   // el fondo no se desplaza mientras se ve la foto
+    document.body.appendChild(fondo);
+    cerrar.focus();
+  }
+
   // ------------------------------------------------------------------ Menú
   function tarjetaProducto(pr) {
     return h('li', { class: 'producto', 'data-producto': pr.clave },
-      // La foto es decorativa (el nombre va al lado). Si no carga, se quita y la tarjeta queda como antes.
-      pr.foto ? h('img', { class: 'producto-foto', src: '/img/productos/' + pr.foto + '.webp', alt: '', width: '72', height: '72', loading: 'lazy', decoding: 'async',
-        onerror: (ev) => { if (ev.target && ev.target.parentNode) ev.target.parentNode.removeChild(ev.target); } }) : null,
+      // La miniatura es decorativa (el nombre va al lado) y abre la foto ampliada. Si no carga, se quita y la tarjeta queda como antes.
+      pr.foto ? h('button', { type: 'button', class: 'producto-foto-btn', 'data-accion': 'ver-foto', 'aria-label': 'Ver foto de ' + pr.nombre,
+        onclick: (ev) => abrirFoto(pr, ev.currentTarget) },
+        h('img', { class: 'producto-foto', src: '/img/productos/' + pr.foto + '.webp', alt: '', width: '72', height: '72', loading: 'lazy', decoding: 'async',
+          onerror: (ev) => { const b = ev.target && ev.target.parentNode; if (b && b.parentNode) b.parentNode.removeChild(b); } })) : null,
       h('div', { class: 'producto-texto' },
         h('h3', null, pr.nombre),
         pr.descripcion ? h('p', { class: 'pequeno' }, pr.descripcion) : null,

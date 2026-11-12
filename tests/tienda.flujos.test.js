@@ -9,6 +9,8 @@ const SESION = { id: 'u-1', email: 'laura@prueba.test' };
 
 async function montar(api, opciones) {
   document.body.innerHTML = '<div id="app"></div>';
+  document.body.style.overflow = '';
+  window.scrollTo = () => {};   // jsdom no lo implementa; la tienda lo llama al cambiar de pantalla
   const guardado = new Map();
   const almacen = { leer: (k) => guardado.get(k) || null, escribir: (k, v) => guardado.set(k, v), borrar: (k) => guardado.delete(k) };
   const t = crearTienda({ raiz: document.getElementById('app'), api, almacen, ahora: () => AHORA, setInterval: () => 0, clearInterval: () => {}, ...(opciones || {}) });
@@ -99,6 +101,48 @@ describe('Tienda: fotos de los productos', () => {
     expect(foto('latte').getAttribute('src')).toBe('/img/productos/latte.webp');
     expect(foto('amazonas').getAttribute('alt')).toBe('');                                  // decorativa: el nombre está al lado
     expect(foto('bowl-personalizado')).toBeNull();
+  });
+
+  it('al tocar la miniatura se abre la foto ampliada (grande en bowls y litro, miniatura en cafés) y se cierra con la X', async () => {
+    await montar(crearFakeTienda());
+    expect($('[data-campo="foto-ampliada"]')).toBeNull();
+    await click('[data-producto="amazonas"] [data-accion="ver-foto"]');
+    expect($('[data-campo="foto-ampliada"] img.foto-grande').getAttribute('src')).toBe('/img/productos/zoom/amazonas.webp');
+    expect($('[data-campo="foto-ampliada"] img.foto-grande').getAttribute('alt')).toBe('Amazonas');
+    expect(texto('[data-campo="foto-ampliada"] figcaption')).toBe('Amazonas');
+    expect($('[data-campo="foto-ampliada"]').getAttribute('role')).toBe('dialog');
+    expect(document.body.style.overflow).toBe('hidden');                       // el fondo no se desplaza
+    await click('[data-accion="cerrar-foto"]');
+    expect($('[data-campo="foto-ampliada"]')).toBeNull();
+    expect(document.body.style.overflow).toBe('');
+    await click('[data-producto="latte"] [data-accion="ver-foto"]');
+    expect($('[data-campo="foto-ampliada"] img.foto-grande').getAttribute('src')).toBe('/img/productos/latte.webp');   // sin versión grande
+    await click('[data-accion="cerrar-foto"]');
+    await click('[data-producto="litro-acai"] [data-accion="ver-foto"]');
+    expect($('[data-campo="foto-ampliada"] img.foto-grande').getAttribute('src')).toBe('/img/productos/zoom/litro.webp');
+  });
+
+  it('la foto ampliada también se cierra con Esc y tocando el fondo, y devuelve el foco a la miniatura', async () => {
+    await montar(crearFakeTienda());
+    await click('[data-producto="selva"] [data-accion="ver-foto"]');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect($('[data-campo="foto-ampliada"]')).toBeNull();
+    expect(document.activeElement).toBe($('[data-producto="selva"] [data-accion="ver-foto"]'));
+    await click('[data-producto="cacao"] [data-accion="ver-foto"]');
+    await click('[data-campo="foto-ampliada"]');                               // el clic cae en el fondo, no en la foto
+    expect($('[data-campo="foto-ampliada"]')).toBeNull();
+    await click('[data-producto="cacao"] [data-accion="ver-foto"]');
+    await click('[data-campo="foto-ampliada"] img.foto-grande');               // tocar la foto no la cierra
+    expect($('[data-campo="foto-ampliada"]')).not.toBeNull();
+  });
+
+  it('si la versión grande no carga se muestra la miniatura', async () => {
+    await montar(crearFakeTienda());
+    await click('[data-producto="fit"] [data-accion="ver-foto"]');
+    const g = $('[data-campo="foto-ampliada"] img.foto-grande');
+    expect(g.getAttribute('src')).toBe('/img/productos/zoom/fit.webp');
+    g.dispatchEvent(new Event('error'));
+    expect(g.getAttribute('src')).toBe('/img/productos/fit.webp');
   });
 
   it('si una foto no carga se quita y la tarjeta sigue usable', async () => {
