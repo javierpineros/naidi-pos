@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Naidi.fit</title>
+  <script>
+    // Bold devuelve a la persona a la raíz del sitio con ?bold-order-id=...: la llevamos a la tienda conservando la consulta.
+    // Si la raíz pasa a ser la web pública, este redirect debe quedarse.
+    if (/[?&]bold-order-id=/.test(location.search)) location.replace('/tienda/' + location.search);
+  </script>
 </head>
 <body>
   <h1>Naidi.fit</h1>

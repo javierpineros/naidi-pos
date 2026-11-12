@@ -326,8 +326,8 @@ select is((select s from r where k = 'anon_lista'),   '42501', 'anónimo: no ve 
 select is((select s from r where k = 'anon_pv'),      '42501', 'anónimo: no lee el punto de venta');
 
 select is((select count(*) from pg_tables where schemaname = 'public' and not rowsecurity), 0::bigint, 'todas las tablas de public tienen RLS activado');
-select is((select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname <> 'pantalla_estado' and has_function_privilege('anon', p.oid, 'execute')),
-  0::bigint, 'ninguna función pública es ejecutable por anónimos (salvo pantalla_estado, de la pantalla del iPad)');
+select is((select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname not in ('pantalla_estado', 'tienda_estado') and has_function_privilege('anon', p.oid, 'execute')),
+  0::bigint, 'ninguna función pública es ejecutable por anónimos (salvo pantalla_estado y tienda_estado, las dos públicas)');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname in ('public', 'private') and p.prosecdef
              and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')),

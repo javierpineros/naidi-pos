@@ -29,7 +29,7 @@ describe('acceso del personal', () => {
     await click('[data-accion="verificar-codigo"]');
     await esperar(12);
     expect($('[data-vista="espera"]')).not.toBeNull();
-    expect($$('[data-pestana]').map((b) => b.dataset.pestana)).toEqual(['espera', 'venta', 'rappi', 'caja']);
+    expect($$('[data-pestana]').map((b) => b.dataset.pestana)).toEqual(['espera', 'venta', 'pedidos', 'rappi', 'caja']);
     expect(texto('.cabecera')).toContain('cajero@naidi.test');
     expect(m.pos.estado.rol).toBe('cajero');
   });

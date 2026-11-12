@@ -5,6 +5,7 @@ import { montarAcceso } from './ui/acceso.js';
 import { crearVistaEspera } from './ui/espera.js';
 import { crearVistaVenta } from './ui/venta.js';
 import { crearVistaRappi } from './ui/rappi.js';
+import { crearVistaPedidos } from './ui/pedidos.js';
 import { crearVistaCaja } from './ui/caja.js';
 import { crearVistaReportes } from './ui/reportes.js';
 import { crearReportesCliente } from './ui/reportes-cliente.js';
@@ -15,7 +16,7 @@ export function crearPos(cfg) {
   const ahora = cfg.ahora || (() => new Date());
   const cadaTanto = cfg.setInterval || ((fn, ms) => setInterval(fn, ms));
   const luego = cfg.setTimeout || ((fn, ms) => setTimeout(fn, ms));
-  const intervalos = { espera: 5000, cola: 15000, ...(cfg.intervalos || {}) };
+  const intervalos = { espera: 5000, cola: 15000, pedidos: 25000, ...(cfg.intervalos || {}) };
   const cacheCatalogo = cfg.cacheCatalogo || { leer: () => null, escribir: () => {} };
 
   const estado = { rol: null, correo: '', conectado: true, pendientes: 0, destino: null, espera: [], pestana: 'espera', temporizadores: [] };
@@ -44,7 +45,7 @@ export function crearPos(cfg) {
       estado.pestana = nombre;
       for (const [n, v] of Object.entries(vistas)) v.el.hidden = n !== nombre;
       for (const p of pestanas) p.boton.classList.toggle('activa', p.nombre === nombre);
-      if (nombre === 'caja' || nombre === 'espera') vistas[nombre].refrescar();
+      if (nombre === 'caja' || nombre === 'espera' || nombre === 'pedidos') vistas[nombre].refrescar();
     },
     avisar(mensaje, tipo) {
       const a = h('p', { class: 'aviso-flotante ' + (tipo || 'ok') }, mensaje);
@@ -58,6 +59,11 @@ export function crearPos(cfg) {
       if (ok && !antes) sincronizarCola();
     },
     avisarCola() { actualizarPendientes(); },
+    // Cantidad de pedidos web abiertos junto al rótulo de la pestaña.
+    marcarPedidosAbiertos(n) {
+      const p = pestanas.find((x) => x.nombre === 'pedidos');
+      if (p) p.boton.textContent = p.rotulo + (n ? ' (' + n + ')' : '');
+    },
     refrescarEspera: () => (vistas.espera ? vistas.espera.refrescar() : Promise.resolve()),
   };
 
@@ -82,6 +88,7 @@ export function crearPos(cfg) {
     for (const t of estado.temporizadores) clearInterval(t);
     estado.temporizadores = [];
     if (estado.desuscribir) { try { estado.desuscribir(); } catch (e) { /* ok */ } }
+    if (estado.desuscribirPedidos) { try { estado.desuscribirPedidos(); } catch (e) { /* ok */ } }
     await api.salir();
     iniciar();
   }
@@ -133,15 +140,16 @@ export function crearPos(cfg) {
     pestanas.length = 0;
     vistas.espera = crearVistaEspera(ctx);
     vistas.venta = crearVistaVenta(ctx);
+    vistas.pedidos = crearVistaPedidos(ctx);
     vistas.rappi = crearVistaRappi(ctx);
     vistas.caja = crearVistaCaja(ctx);
     if (ctx.esDueno()) vistas.reportes = crearVistaReportes(ctx);
 
-    const rotulos = { espera: 'Espera', venta: 'Venta', rappi: 'Rappi', caja: 'Caja', reportes: 'Reportes' };
+    const rotulos = { espera: 'Espera', venta: 'Venta', pedidos: 'Pedidos web', rappi: 'Rappi', caja: 'Caja', reportes: 'Reportes' };
     vaciar(nav);
     for (const nombre of Object.keys(vistas)) {
       const boton = h('button', { type: 'button', class: 'pestana', 'data-pestana': nombre, onclick: () => ctx.irA(nombre) }, rotulos[nombre]);
-      pestanas.push({ nombre, boton });
+      pestanas.push({ nombre, boton, rotulo: rotulos[nombre] });
       nav.append(boton);
     }
     vaciar(principal);
@@ -152,7 +160,9 @@ export function crearPos(cfg) {
     vaciar(raiz).append(cabecera, nav, avisos, reportesCliente.el, principal);
     ctx.irA('espera');
 
-    await Promise.all([vistas.espera.refrescar(), reportesCliente.refrescar(), actualizarPendientes()]);
+    await Promise.all([vistas.espera.refrescar(), vistas.pedidos.refrescar(), reportesCliente.refrescar(), actualizarPendientes()]);
+    try { estado.desuscribirPedidos = api.suscribirPedidosWeb(() => vistas.pedidos.refrescar()); } catch (e) { estado.desuscribirPedidos = null; }
+    estado.temporizadores.push(cadaTanto(() => vistas.pedidos.refrescar(), intervalos.pedidos));
     try { estado.desuscribir = api.suscribirEspera(() => vistas.espera.refrescar()); } catch (e) { estado.desuscribir = null; }
     estado.temporizadores.push(cadaTanto(() => { vistas.espera.refrescar(); reportesCliente.refrescar(); }, intervalos.espera));
     estado.temporizadores.push(cadaTanto(() => sincronizarCola(), intervalos.cola));

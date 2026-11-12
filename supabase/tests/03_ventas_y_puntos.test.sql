@@ -364,7 +364,7 @@ select is((select s from r where k = 'due_qr'),        '42501', 'dueño: tampoco
 
 -- Higiene general
 select is((select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef
-           and p.proname <> 'pantalla_estado' and has_function_privilege('anon', p.oid, 'execute')), 0::bigint, 'ninguna función pública es ejecutable por anónimos (salvo pantalla_estado, de la pantalla del iPad)');
+           and p.proname not in ('pantalla_estado', 'tienda_estado') and has_function_privilege('anon', p.oid, 'execute')), 0::bigint, 'ninguna función pública es ejecutable por anónimos (salvo pantalla_estado y tienda_estado, las dos públicas)');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname in ('public', 'private') and p.prosecdef
              and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')),
