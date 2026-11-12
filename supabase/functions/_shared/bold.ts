@@ -29,7 +29,9 @@ export async function firmaIntegridad(orderId: string, monto: number, moneda: st
 
 // x-bold-signature: HMAC-SHA256 (hex) de base64(cuerpo crudo) con la llave secreta.
 export async function firmaWebhook(cuerpoCrudo: string, llaveSecreta: string): Promise<string> {
-  const llave = await crypto.subtle.importKey('raw', codificador.encode(llaveSecreta), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  // WebCrypto no admite llaves de longitud cero; HMAC rellena la llave con ceros hasta el bloque (64 bytes), así que es equivalente.
+  const bytes = llaveSecreta ? codificador.encode(llaveSecreta) : new Uint8Array(64);
+  const llave = await crypto.subtle.importKey('raw', bytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const base64 = aBase64(codificador.encode(cuerpoCrudo));
   return aHex(await crypto.subtle.sign('HMAC', llave, codificador.encode(base64)));
 }
@@ -46,6 +48,41 @@ export async function firmaValida(cuerpoCrudo: string, cabecera: string | null, 
   if (!llaveSecreta || !cabecera) return false;
   const esperada = await firmaWebhook(cuerpoCrudo, llaveSecreta);
   return iguales(esperada, cabecera.trim().toLowerCase());
+}
+
+// El botón "Probar webhook" (y, probablemente, los pagos del sandbox) firma con la llave vacía. Solo se usa si el entorno
+// de PRUEBAS lo permite explícitamente (ver aceptarFirmaVaciaPruebas); en producción una firma vacía es falsificable por cualquiera.
+export async function firmaValidaConLlaveVacia(cuerpoCrudo: string, cabecera: string | null): Promise<boolean> {
+  if (!cabecera) return false;
+  return iguales(await firmaWebhook(cuerpoCrudo, ''), cabecera.trim().toLowerCase());
+}
+
+// Diagnóstico cuando la firma no coincide: dice con qué combinación de llave y cuerpo SÍ coincidiría la cabecera recibida.
+// Devuelve solo verdadero/falso por combinación: nunca llaves, firmas ni datos del cuerpo (se imprime en los registros).
+export async function diagnosticarFirma(
+  cuerpoCrudo: string, cabecera: string | null, llaves: { secreta: string; identidad: string },
+): Promise<Record<string, boolean | number>> {
+  const recibida = (cabecera ?? '').trim().toLowerCase();
+  const hmac = async (llave: string, mensaje: string): Promise<string> => {
+    try {
+      // WebCrypto no admite llaves de longitud cero; HMAC rellena la llave con ceros hasta el bloque (64 bytes), así que es equivalente.
+      const bytes = llave ? codificador.encode(llave) : new Uint8Array(64);
+      const k = await crypto.subtle.importKey('raw', bytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+      return aHex(await crypto.subtle.sign('HMAC', k, codificador.encode(mensaje)));
+    } catch (_e) { return ''; }
+  };
+  const base64 = aBase64(codificador.encode(cuerpoCrudo));
+  const prueba = async (llave: string, mensaje: string) => !!recibida && iguales(await hmac(llave, mensaje), recibida);
+  return {
+    largoCabecera: recibida.length,
+    conPrefijoSha256: recibida.startsWith('sha256='),
+    secretaSobreBase64: await prueba(llaves.secreta, base64),          // lo que implementamos hoy
+    secretaSobreCuerpo: await prueba(llaves.secreta, cuerpoCrudo),     // HMAC del cuerpo sin base64
+    vaciaSobreBase64: await prueba('', base64),                        // pruebas de Bold con llave vacía
+    vaciaSobreCuerpo: await prueba('', cuerpoCrudo),
+    identidadSobreBase64: await prueba(llaves.identidad, base64),
+    identidadSobreCuerpo: await prueba(llaves.identidad, cuerpoCrudo),
+  };
 }
 
 export interface EventoBold {

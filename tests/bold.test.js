@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
-import { firmaIntegridad, firmaWebhook, firmaValida, iguales, normalizarEvento, eventoDeVoucher } from '../supabase/functions/_shared/bold.ts';
+import { diagnosticarFirma, firmaIntegridad, firmaWebhook, firmaValida, iguales, normalizarEvento, eventoDeVoucher } from '../supabase/functions/_shared/bold.ts';
 import { manejarCheckout, manejarWebhook, manejarConciliacion, manejarVerificacion } from '../supabase/functions/_shared/manejadores.ts';
 
 const SECRETA = 'llave-secreta-de-prueba';
@@ -64,6 +64,51 @@ describe('Bold: firmas', () => {
     expect(await firmaValida(cuerpo, f, 'otra-llave')).toBe(false);
     expect(iguales('abc', 'abd')).toBe(false);
   });
+
+  it('el diagnóstico dice con qué llave coincidiría la firma, sin exponer llaves ni cuerpo', async () => {
+    const cuerpo = '{"id":"evt-9"}';
+    const llaves = { secreta: SECRETA, identidad: IDENTIDAD };
+    const conVacia = createHmac('sha256', '').update(Buffer.from(cuerpo).toString('base64')).digest('hex');
+    const d1 = await diagnosticarFirma(cuerpo, conVacia, llaves);
+    expect(d1.vaciaSobreBase64).toBe(true);
+    expect(d1.secretaSobreBase64).toBe(false);
+    expect(d1.largoCabecera).toBe(64);
+    const d2 = await diagnosticarFirma(cuerpo, createHmac('sha256', SECRETA).update(cuerpo).digest('hex'), llaves);
+    expect(d2.secretaSobreCuerpo).toBe(true);
+    expect(d2.secretaSobreBase64).toBe(false);
+    const d3 = await diagnosticarFirma(cuerpo, null, llaves);
+    expect(Object.values(d3).every((v) => v === false || v === 0)).toBe(true);
+    expect(JSON.stringify(d1)).not.toContain(SECRETA);
+  });
+
+  it('la firma con llave vacía (sandbox de Bold) se rechaza por defecto y solo se acepta con la bandera de pruebas', async () => {
+    const ev = eventoAprobado();
+    const vacia = await firmaWebhook(JSON.stringify(ev), '');
+    expect(vacia).toHaveLength(64);
+    const apagada = depsFalsas();
+    expect((await manejarWebhook(await solicitudFirmada(ev, vacia), apagada.deps)).status).toBe(401);
+    expect(apagada.llamadas).toHaveLength(0);                                   // no se aplicó nada
+    const explicita = depsFalsas({ secretos: { aceptarFirmaVaciaPruebas: false } });
+    expect((await manejarWebhook(await solicitudFirmada(ev, vacia), explicita.deps)).status).toBe(401);
+    const encendida = depsFalsas({ secretos: { aceptarFirmaVaciaPruebas: true } });
+    expect((await manejarWebhook(await solicitudFirmada(ev, vacia), encendida.deps)).status).toBe(200);
+    expect(encendida.llamadas.some((l) => l.nombre === 'aplicar_evento_bold')).toBe(true);
+  });
+
+  it('con la bandera de pruebas encendida una firma inventada sigue dando 401, y la firma real sigue valiendo', async () => {
+    const ev = eventoAprobado();
+    const a = depsFalsas({ secretos: { aceptarFirmaVaciaPruebas: true } });
+    expect((await manejarWebhook(await solicitudFirmada(ev, 'b'.repeat(64)), a.deps)).status).toBe(401);
+    expect(a.llamadas).toHaveLength(0);
+    const b = depsFalsas({ secretos: { aceptarFirmaVaciaPruebas: true } });
+    expect((await manejarWebhook(await solicitudFirmada(ev), b.deps)).status).toBe(200);   // firmada con la llave secreta
+  });
+
+  it('una firma inválida responde 401 igual aunque el diagnóstico corra', async () => {
+    const { deps } = depsFalsas();
+    const res = await manejarWebhook(await solicitudFirmada(eventoAprobado(), 'a'.repeat(64)), deps);
+    expect(res.status).toBe(401);
+  });
 });
 
 describe('Bold: lectura de eventos', () => {
@@ -121,6 +166,37 @@ describe('Bold: webhook', () => {
   it('si la base de datos falla responde 500 para que Bold reintente', async () => {
     const { deps } = depsFalsas({ respuestas: { aplicar_evento_bold: { data: null, error: { message: 'caída' } } } });
     expect((await manejarWebhook(await solicitudFirmada(eventoAprobado()), deps)).status).toBe(500);
+  });
+
+  describe('venta aprobada con monto 0 (sandbox de Bold)', () => {
+    const conMontoCero = () => eventoAprobado({ data: { payment_id: 'bp-1', payment_method: 'PSE', amount: { currency: 'COP', total: 0, taxes: [], tip: 0 }, metadata: { reference: 'NW41-abcdef0123' } } });
+    const voucherReal = async () => new Response(JSON.stringify({ payment_status: 'APPROVED', payment_id: 'bp-1', amount: { total: 4000, currency: 'COP' }, payment_method: 'PSE' }), { status: 200 });
+
+    it('no valida contra el 0: consulta el comprobante a Bold y aplica el monto real', async () => {
+      const consultas = [];
+      const { deps, llamadas } = depsFalsas({ fetch: async (url, init) => { consultas.push({ url, auth: init.headers.Authorization }); return voucherReal(); } });
+      const r = await manejarWebhook(await solicitudFirmada(conMontoCero()), deps);
+      expect(r.status).toBe(200);
+      expect(consultas).toEqual([{ url: 'https://payments.api.bold.co/v2/payment-voucher/NW41-abcdef0123', auth: 'x-api-key ' + IDENTIDAD }]);
+      expect(llamadas).toHaveLength(1);
+      expect(llamadas[0]).toMatchObject({ nombre: 'aplicar_evento_bold', args: { p_tipo: 'SALE_APPROVED', p_monto: 4000, p_evento_id: 'conciliacion:NW41-abcdef0123:SALE_APPROVED' } });
+    });
+
+    it('si Bold todavía no tiene el comprobante responde 500 para que reintente, sin acreditar nada', async () => {
+      const { deps, llamadas } = depsFalsas({ fetch: async () => new Response('{}', { status: 404 }) });
+      expect((await manejarWebhook(await solicitudFirmada(conMontoCero()), deps)).status).toBe(500);
+      expect(llamadas).toHaveLength(0);
+    });
+
+    it('un monto distinto pero real (no 0) sigue yendo a la base de datos, que lo rechaza y alerta', async () => {
+      const mil = eventoAprobado({ data: { payment_id: 'bp-1', amount: { total: 1000, currency: 'COP' }, metadata: { reference: 'NW41-abcdef0123' } } });
+      let consultado = false;
+      const { deps, llamadas } = depsFalsas({ fetch: async () => { consultado = true; return voucherReal(); }, respuestas: { aplicar_evento_bold: { data: { resultado: 'monto_distinto' }, error: null } } });
+      const r = await manejarWebhook(await solicitudFirmada(mil), deps);
+      expect(await r.json()).toEqual({ resultado: 'monto_distinto' });
+      expect(consultado).toBe(false);
+      expect(llamadas[0]).toMatchObject({ args: { p_monto: 1000 } });
+    });
   });
 
   it('un cuerpo que no es JSON o sin referencia responde 400; otros métodos 405; cuerpos enormes 413', async () => {

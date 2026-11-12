@@ -1,12 +1,13 @@
 // Manejadores HTTP de las Edge Functions de Bold. Reciben sus dependencias (secretos, clientes de Supabase, fetch)
 // para que las mismas funciones corran en Deno y en las pruebas de Node. Las llaves de Bold salen solo de los secretos.
-import { eventoDeVoucher, firmaIntegridad, firmaValida, normalizarEvento } from './bold.ts';
+import { diagnosticarFirma, eventoDeVoucher, firmaIntegridad, firmaValida, firmaValidaConLlaveVacia, normalizarEvento } from './bold.ts';
 
 export interface Secretos {
   identidad: string;        // llave de identidad (pública: va en el botón)
   secreta: string;          // llave secreta (firma el hash y valida el webhook)
   sitio: string;            // https://tienda... sin barra final: a dónde vuelve el cliente tras pagar
   tokenConciliacion: string;
+  aceptarFirmaVaciaPruebas?: boolean;   // solo entornos de pruebas/locales: acepta además la firma hecha con llave vacía (sandbox de Bold)
 }
 
 export interface Dependencias {
@@ -63,9 +64,20 @@ export async function manejarWebhook(req: Request, d: Dependencias): Promise<Res
   if (req.method !== 'POST') return json({ error: 'Método no permitido.' }, 405);
   const crudo = await req.text();
   if (crudo.length > 200000) return json({ error: 'Cuerpo muy grande.' }, 413);
-  if (!(await firmaValida(crudo, req.headers.get('x-bold-signature'), d.secretos.secreta))) {
+  const cabeceraFirma = req.headers.get('x-bold-signature');
+  let firmaOk = await firmaValida(crudo, cabeceraFirma, d.secretos.secreta);
+  if (!firmaOk && d.secretos.aceptarFirmaVaciaPruebas && await firmaValidaConLlaveVacia(crudo, cabeceraFirma)) {
+    console.warn('[bold-webhook] aceptada firma con llave vacía (modo pruebas): no uses esto en producción');
+    firmaOk = true;
+  }
+  if (!firmaOk) {
     // Rastro para depurar (sin datos del cuerpo ni llaves): permite distinguir "no llegó" de "llegó y la firma no coincide".
     console.warn('[bold-webhook] firma no válida', { cabecera: !!req.headers.get('x-bold-signature'), bytes: crudo.length });
+    // Con qué llave/cuerpo habría coincidido (solo verdadero/falso): sirve para aclarar cómo firma Bold en pruebas.
+    try {
+      console.warn('[bold-webhook] diagnóstico de firma',
+        await diagnosticarFirma(crudo, req.headers.get('x-bold-signature'), { secreta: d.secretos.secreta, identidad: d.secretos.identidad }));
+    } catch (_e) { /* el diagnóstico nunca debe cambiar la respuesta */ }
     return json({ error: 'Firma no válida.' }, 401);
   }
   let ev: any = null;
@@ -73,12 +85,28 @@ export async function manejarWebhook(req: Request, d: Dependencias): Promise<Res
   const e = normalizarEvento(ev);
   if (!e) return json({ error: 'Evento sin id o sin referencia.' }, 400);
 
+  // El sandbox de Bold manda las ventas aprobadas con amount.total en 0, y un pago real nunca es 0 (mínimo $1.000).
+  // Sin un monto utilizable el evento solo sirve de aviso: el monto y el estado salen del comprobante que Bold devuelve
+  // a nuestra llave del servidor, y la base de datos los valida contra el intento igual que siempre.
+  if (e.tipo === 'SALE_APPROVED' && e.monto <= 0) {
+    const r = await conciliarOrden(d, e.orderId);
+    console.info('[bold-webhook] evento sin monto utilizable; se confirma con el comprobante de Bold', e.orderId, r);
+    if (r === 'bandera_apagada') return json({ error: 'No encontrado.' }, 404);
+    if (r === 'error' || r === 'error_red' || r.startsWith('sin_voucher')) return json({ error: 'No se pudo confirmar el pago todavía.' }, 500);   // Bold reintenta
+    return json({ resultado: r }, 200);
+  }
+
   const { data, error } = await d.clienteServicio.rpc('aplicar_evento_bold', {
     p_evento_id: e.eventoId, p_tipo: e.tipo, p_order_id: e.orderId, p_bold_payment_id: e.boldPaymentId,
     p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: ev,
   });
   if (error) { console.error('[bold-webhook] error al aplicar el evento', e.tipo, e.orderId); return json({ error: 'No se pudo procesar el evento.' }, 500); }   // Bold reintenta
   console.info('[bold-webhook] evento aplicado', e.tipo, e.orderId, data && data.resultado);
+  // Si el monto no cuadra, deja a la vista cómo mandó Bold los montos (solo importes y moneda, sin datos de la persona).
+  if (data && data.resultado === 'monto_distinto') {
+    const a = ev && ev.data && typeof ev.data.amount === 'object' ? ev.data.amount : null;
+    console.warn('[bold-webhook] monto distinto: forma del monto en el evento', { leido: e.monto, amount: a, claves: Object.keys((ev && ev.data) || {}) });
+  }
   // Con la bandera apagada la ruta no existe para el mundo exterior.
   if (data && data.resultado === 'bandera_apagada') return json({ error: 'No encontrado.' }, 404);
   return json({ resultado: data && data.resultado }, 200);
