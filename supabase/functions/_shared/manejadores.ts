@@ -123,6 +123,13 @@ export async function manejarConciliacion(req: Request, d: Dependencias): Promis
   if (error) return json({ error: 'No se pudo leer los pagos pendientes.' }, 500);
   const resumen: Record<string, string> = {};
   for (const p of (pendientes || [])) resumen[p.order_id] = await conciliarOrden(d, p.order_id);
+  // Deja constancia de cada corrida (aunque no hubiera nada que revisar) para que el panel del dueño vea que el cron vive.
+  // Solo se guarda el conteo por resultado: ni referencias ni datos de personas. Si falla, la respuesta no cambia.
+  const conteo: Record<string, number> = {};
+  for (const r of Object.values(resumen)) conteo[r] = (conteo[r] || 0) + 1;
+  try {
+    await d.clienteServicio.rpc('registrar_conciliacion_bold', { p_revisados: Object.keys(resumen).length, p_resumen: conteo });
+  } catch (_e) { /* el registro es informativo */ }
   return json({ revisados: Object.keys(resumen).length, resumen }, 200);
 }
 

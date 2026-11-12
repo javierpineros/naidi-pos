@@ -1,0 +1,6 @@
+/* Panel del dueño: usa los estilos del POS (pos.css); aquí solo lo propio. */
+.alerta-texto { margin: 0 0 4px; font-weight: 600; }
+.tarjeta.alerta-no_llego, .tarjeta.alerta-pago_bold { border-left: 4px solid #59358C; }
+input[data-campo="enlace-activacion"] { width: 100%; box-sizing: border-box; word-break: break-all; }
+.tabla td, .tabla th { vertical-align: top; }
+.vista h3 { margin-top: 20px; }

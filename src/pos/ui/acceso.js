@@ -1,10 +1,11 @@
 // Acceso del personal: correo + código de 6 dígitos. El dueño, además, verifica en dos pasos (TOTP).
 import { h, vaciar } from '../../lib/dom.js';
 
-export function montarAcceso({ api, contenedor, alListo }) {
+// `soloDueno` lo usa el panel: una cuenta de cajero entra al POS pero no al panel.
+export function montarAcceso({ api, contenedor, alListo, titulo, soloDueno }) {
   const zona = h('div', { class: 'acceso-zona' });
   const error = h('p', { class: 'error', role: 'alert', 'data-zona': 'error' });
-  contenedor.append(h('section', { class: 'acceso' }, h('h1', { class: 'titulo' }, 'Naidi POS'), zona, error));
+  contenedor.append(h('section', { class: 'acceso' }, h('h1', { class: 'titulo' }, titulo || 'Naidi POS'), zona, error));
   let correo = '';
   let ocupado = false;
 
@@ -63,6 +64,11 @@ export function montarAcceso({ api, contenedor, alListo }) {
       await api.salir();
       pasoCorreo();
       throw new Error('Esta cuenta no tiene acceso al POS. Habla con el dueño.');
+    }
+    if (soloDueno && perfil.rol !== 'dueno') {
+      await api.salir();
+      pasoCorreo();
+      throw new Error('Esta sección es solo para el dueño.');
     }
     if (perfil.rol === 'dueno' && ses.nivel !== 'aal2') {
       const factor = await api.mfaFactor();
