@@ -77,6 +77,36 @@ export function crearVistaVenta(ctx) {
     });
   }
 
+  // La venta abierta en el servidor (confirmada sin pagar o en edición) se recuerda en este dispositivo: si el POS se recarga,
+  // se cierra la pestaña o se renueva la sesión, la venta sigue esperando el pago en vez de "desaparecer" de la pantalla.
+  const memoria = ctx.almacenVenta || { leer: () => null, escribir: () => {}, borrar: () => {} };
+  let recordando = false;   // hasta intentar retomar la venta guardada no se borra nada (la vista arranca vacía)
+  function recordar() {
+    const abierta = v && v.modo === 'vivo' && v.ventaId && v.fase !== 'listo';
+    if (abierta) { recordando = true; memoria.escribir(v.ventaId); } else if (recordando) memoria.borrar();
+  }
+
+  // Al abrir el turno: si había una venta abierta, se vuelve a mostrar en la fase en que estaba (cobro o armado).
+  async function retomarAbierta() {
+    const id = memoria.leer();
+    if (!id) { recordando = true; return; }
+    let row;
+    try {
+      row = await ctx.api.venta(id);
+    } catch (e) {
+      return;    // sin conexión: se conserva lo guardado y se reintenta al próximo arranque
+    }
+    recordando = true;
+    if (!row || (row.estado !== 'confirmada' && row.estado !== 'alistando')) { memoria.borrar(); return; }   // ya se pagó, canceló o descartó
+    if (v && v.fase !== 'listo') return;   // la persona ya empezó otra venta
+    v = { ...vacia(), modo: 'vivo', idem: row.idempotency_key, ventaId: id, servidor: row, fase: row.estado === 'confirmada' ? 'pago' : 'armando',
+      cliente: row.cliente_id ? { id: row.cliente_id, nombre: 'Cliente', inicial: '' } : null };
+    try { await recargar(); } catch (e) { /* se muestra lo que ya hay */ }
+    pintar();
+    ctx.irA('venta');
+    ctx.avisar('Retomé la venta' + (row.numero ? ' #' + row.numero : '') + ', que seguía sin pagar.', 'ok');
+  }
+
   async function reanudar(ventaId) {
     await guardar(async () => {
       const row = await ctx.api.venta(ventaId);
@@ -377,6 +407,7 @@ export function crearVistaVenta(ctx) {
   }
 
   function pintar() {
+    recordar();
     vaciar(zona);
     if (!v) {
       zona.append(h('div', { class: 'vacio' }, h('h2', null, 'Sin venta abierta'),
@@ -438,7 +469,7 @@ export function crearVistaVenta(ctx) {
 
   pintar();
   return {
-    el, iniciarConCliente, iniciarSinCliente, reanudar, pintar, revisarPago, repintarCatalogo: () => panel.pintar(),
+    el, iniciarConCliente, iniciarSinCliente, reanudar, retomarAbierta, pintar, revisarPago, repintarCatalogo: () => panel.pintar(),
     hayVenta: () => !!v && v.fase !== 'listo',
   };
 }

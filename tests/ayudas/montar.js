@@ -27,7 +27,7 @@ export async function montarPos(api, opciones) {
   const cola = crearCola({ almacen: almacenMemoria(), ahora: () => '2026-11-10T15:00:00.000Z' });
   const cache = { v: null, leer() { return this.v; }, escribir(x) { this.v = x; } };
   const pos = crearPos({
-    raiz, api, cola, sonido, cacheCatalogo: cache,
+    raiz, api, cola, sonido, cacheCatalogo: cache, almacenVenta: o.almacenVenta,
     ahora: () => new Date('2026-11-10T15:00:00Z'),
     enLinea: o.enLinea || (() => true),
     origen: () => 'https://pos.naidi.test',

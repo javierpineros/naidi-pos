@@ -456,6 +456,67 @@ describe('venta visible en el iPad y modificable', () => {
     expect(eventos(api, 'crearVenta').length).toBe(1);
   });
 
+  describe('la venta abierta sobrevive a recargar el POS', () => {
+    const memoria = () => { const m = { id: null, leer: () => m.id, escribir: (x) => { m.id = x; }, borrar: () => { m.id = null; } }; return m; };
+    const recargarPos = async (api, almacenVenta) => { await montarPos(api, { almacenVenta }); await esperar(12); };   // la sesión ya existe: entra directo
+    const confirmarUna = async (api, almacenVenta) => {
+      await entrarComoPersonal(api, { almacenVenta });
+      await click('[data-accion="venta-sin-cliente-espera"]');
+      await click('[data-producto="espresso"]');
+      await click('[data-accion="confirmar-pedido"]');
+      return [...api._s.ventas.values()][0];
+    };
+
+    it('una venta confirmada que espera el pago se retoma sola en la pantalla de cobro', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const v = await confirmarUna(api, almacenVenta);
+      expect(almacenVenta.id).toBe(v.id);                       // quedó recordada
+      // El POS se recarga (pestaña nueva): la venta sigue confirmada en el servidor y debe volver a verse.
+      await recargarPos(api, almacenVenta);
+      expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+      expect($('[data-vista="venta"]').hidden).toBe(false);
+      expect(texto('.avisos')).toContain('Retomé la venta');
+      expect(v.estado).toBe('confirmada');
+      expect(api._s.ventas.size).toBe(1);                       // no se creó otra
+    });
+
+    it('al pagarla se olvida, y un POS nuevo arranca limpio', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      await confirmarUna(api, almacenVenta);
+      await click('[data-medio="datafono_bold"]');
+      await click('[data-accion="registrar-pago"]');
+      await click('[data-accion="nueva-venta"]');
+      expect(almacenVenta.id).toBeNull();
+      await recargarPos(api, almacenVenta);
+      expect($('[data-accion="registrar-pago"]')).toBeNull();
+      expect(texto('.avisos') || '').not.toContain('Retomé');
+    });
+
+    it('si la venta recordada ya se pagó (por ejemplo con Bold) no se retoma y se olvida', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const v = await confirmarUna(api, almacenVenta);
+      v.estado = 'pagada'; v.medio_pago = 'bold_online';          // el cliente pagó mientras el POS estaba cerrado
+      await recargarPos(api, almacenVenta);
+      expect($('[data-accion="registrar-pago"]')).toBeNull();
+      expect(almacenVenta.id).toBeNull();
+    });
+
+    it('sin conexión al arrancar conserva lo recordado para el próximo intento', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      almacenVenta.id = 'v-1';
+      api._s.ventas.set('v-1', { id: 'v-1', numero: 5, estado: 'confirmada', venta_lineas: [], total_cop: 3500 });
+      const original = api.venta;
+      api.venta = async () => { throw new ErrorRed(); };
+      await montarPos(api, { almacenVenta });
+      api.venta = original;
+      expect(almacenVenta.id).toBe('v-1');
+    });
+  });
+
   it('si el cliente paga con Bold escaneando el QR del iPad, el POS lo muestra solo y no cobra de nuevo', async () => {
     const api = crearFakeApi();
     const m = await entrarComoPersonal(api);

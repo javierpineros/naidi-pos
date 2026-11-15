@@ -18,7 +18,15 @@ const cacheCatalogo = {
   },
 };
 
-const pos = crearPos({ raiz: document.getElementById('app'), api, cola, sonido: crearSonido(), cacheCatalogo });
+// La venta abierta (confirmada sin pagar o en edición) se recuerda para retomarla si el POS se recarga.
+const CLAVE_VENTA = 'naidi.pos.venta_abierta';
+const almacenVenta = {
+  leer() { try { return window.localStorage.getItem(CLAVE_VENTA); } catch (e) { return null; } },
+  escribir(id) { try { window.localStorage.setItem(CLAVE_VENTA, id); } catch (e) { /* ok */ } },
+  borrar() { try { window.localStorage.removeItem(CLAVE_VENTA); } catch (e) { /* ok */ } },
+};
+
+const pos = crearPos({ raiz: document.getElementById('app'), api, cola, sonido: crearSonido(), cacheCatalogo, almacenVenta });
 pos.iniciar();
 
 // Respaldo para recargar sin internet: guarda la página y sus archivos al verlos.

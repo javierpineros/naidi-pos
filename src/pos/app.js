@@ -31,6 +31,7 @@ export function crearPos(cfg) {
 
   const ctx = {
     api, cola, sonido,
+    almacenVenta: cfg.almacenVenta || null,    // dónde recordar la venta abierta (en pruebas, nada)
     get cat() { return cat; },
     esDueno: () => estado.rol === 'dueno',
     enLinea,
@@ -169,6 +170,8 @@ export function crearPos(cfg) {
     // Pedido esperando el cobro: se mira seguido si el cliente ya pagó con Bold escaneando el QR del iPad.
     estado.temporizadores.push(cadaTanto(() => vistas.venta.revisarPago(), intervalos.pago));
     if (estado.pendientes && enLinea()) sincronizarCola();
+    // Si había una venta confirmada esperando el pago (o en edición) antes de recargar, se retoma.
+    await vistas.venta.retomarAbierta();
   }
 
   // ---------------------------------------------------------------- Arranque
