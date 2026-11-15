@@ -102,7 +102,9 @@ export function crearPantalla(o) {
     const v = datos.venta;
     const pago = textoPago(datos);
     const textoTotal = fmtCop(v.total_cop);
-    const formas = (datos.formas_pago || []).map((f) => h('li', { class: 'forma' }, ETIQUETA_PAGO[f] || f));
+    // Las formas de pago son solo información (el iPad no tiene botones): se muestran como lista de texto, no como fichas.
+    // "Pago en línea" no va aquí: se paga escaneando el QR, que tiene su propio bloque.
+    const formas = (datos.formas_pago || []).filter((f) => f !== 'bold_online').map((f) => h('li', { class: 'forma' }, ETIQUETA_PAGO[f] || f));
     // "actualizando": el vendedor está agregando o quitando algo a pedido del cliente; todavía no se paga.
     const actualizando = v.estado === 'actualizando';
     const cobro = actualizando
@@ -111,12 +113,13 @@ export function crearPantalla(o) {
          h('div', { class: 'formas-rotulo' }, 'Estamos actualizando tu pedido…')]
       : [h('div', { class: 'total-rotulo' }, 'Total a pagar'),
          h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
-         h('div', { class: 'formas-rotulo' }, 'Puedes pagar con'),
+         h('div', { class: 'formas-rotulo' }, 'Pagas en caja con'),
          h('ul', { class: 'formas' }, formas),
          pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null,
          // Pago en línea con Bold: el celular abre la página /pagar con el código de esta venta (el monto lo decide el servidor).
          v.codigo_pago ? h('div', { class: 'pago-qr', 'data-zona': 'pago-qr' },
-           h('span', {}, 'O paga desde tu celular: escanea y paga con Bold'),
+           h('strong', { class: 'pago-qr-titulo' }, 'O paga tú mismo con tu celular'),
+           h('span', {}, 'Abre la cámara, escanea este código y paga en línea con Bold (tarjeta, PSE, Nequi)'),
            h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago)))) : null];
     return marco('venta', h('div', { class: 'venta' },
       h('div', { class: 'venta-detalle' },

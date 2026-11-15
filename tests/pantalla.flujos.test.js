@@ -150,18 +150,18 @@ describe('pantalla del iPad: qué muestra', () => {
     m = montar({ llave: LLAVE, respuestas: [ventaConfirmada(), actualizando, ventaConfirmada()] });
     m.pantalla.iniciar();
     await esperar();
-    expect(m.raiz.textContent).toContain('Puedes pagar con');
+    expect(m.raiz.textContent).toContain('Pagas en caja con');
     await m.reloj.correr();
     const t = m.raiz.textContent;
     expect(t).toContain('Tu pedido');
     expect(t).toContain('2 × Espresso');
     expect(t).toContain('$27.900');
     expect(t).toContain('Estamos actualizando tu pedido');
-    expect(t).not.toContain('Puedes pagar con');
+    expect(t).not.toContain('Pagas en caja con');
     expect(t).not.toContain('Total a pagar');
     expect(t).not.toContain('@naidi');
     await m.reloj.correr();                                   // el vendedor confirma de nuevo
-    expect(m.raiz.textContent).toContain('Puedes pagar con');
+    expect(m.raiz.textContent).toContain('Pagas en caja con');
     expect(m.raiz.textContent).not.toContain('Estamos actualizando');
   });
 
@@ -173,8 +173,9 @@ describe('pantalla del iPad: qué muestra', () => {
     m = montar({ llave: LLAVE, respuestas: [datos] });
     m.pantalla.iniciar();
     await esperar();
-    expect(m.raiz.textContent).toContain('paga desde tu celular');
-    expect(m.raiz.textContent).toContain('Pago en línea');
+    expect(m.raiz.textContent).toContain('paga tú mismo con tu celular');
+    expect(m.raiz.textContent).toContain('paga en línea con Bold');
+    expect(m.raiz.textContent).not.toContain('Pago en línea');         // no aparece como si fuera una ficha más
     const svg = m.raiz.querySelector('[data-zona="pago-qr"] svg');
     expect(svg.getAttribute('data-url')).toBe('https://naidi.test/pagar/#' + CODIGO);
     // El total que se muestra sigue siendo el de la venta; el QR no lleva ningún monto.
