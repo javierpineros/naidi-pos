@@ -5,6 +5,7 @@ export const PAGINAS = {
   pantalla: 'pantalla/index.html',
   cuenta: 'cuenta/index.html',
   tienda: 'tienda/index.html',
+  pagar: 'pagar/index.html',
   panel: 'panel/index.html',
   privacidad: 'privacidad/index.html',
 };

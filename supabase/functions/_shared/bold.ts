@@ -126,9 +126,22 @@ export function eventoDeVoucher(orderId: string, voucher: any): EventoBold | nul
     eventoId: 'conciliacion:' + orderId + ':' + tipo,
     tipo,
     orderId,
-    boldPaymentId: voucher.payment_id !== undefined && voucher.payment_id !== null ? String(voucher.payment_id) : null,
+    // El comprobante de Bold identifica la transacción con transaction_id (T_...); payment_id es el nombre en el webhook.
+    boldPaymentId: voucher.transaction_id !== undefined && voucher.transaction_id !== null ? String(voucher.transaction_id).slice(0, 120)
+      : voucher.payment_id !== undefined && voucher.payment_id !== null ? String(voucher.payment_id).slice(0, 120) : null,
     monto: Number.isFinite(total) ? Math.round(total) : -1,
     moneda: voucher.amount && typeof voucher.amount.currency === 'string' ? voucher.amount.currency : 'COP',
     medio: typeof voucher.payment_method === 'string' ? voucher.payment_method.slice(0, 40) : null,
   };
+}
+
+// Lo que se conserva del comprobante como prueba del pago (sin el correo ni otros datos personales de quien pagó).
+export function constanciaDeVoucher(voucher: any): Record<string, unknown> {
+  const v = voucher && typeof voucher === 'object' ? voucher : {};
+  const c: Record<string, unknown> = { origen: 'conciliacion' };
+  for (const k of ['transaction_id', 'payment_id', 'link_id', 'reference_id', 'payment_status', 'payment_method', 'transaction_date', 'total', 'subtotal']) {
+    if (v[k] !== undefined && v[k] !== null) c[k] = v[k];
+  }
+  if (v.amount && typeof v.amount === 'object') c.amount = { total: v.amount.total, currency: v.amount.currency };
+  return c;
 }

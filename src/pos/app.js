@@ -16,7 +16,7 @@ export function crearPos(cfg) {
   const ahora = cfg.ahora || (() => new Date());
   const cadaTanto = cfg.setInterval || ((fn, ms) => setInterval(fn, ms));
   const luego = cfg.setTimeout || ((fn, ms) => setTimeout(fn, ms));
-  const intervalos = { espera: 5000, cola: 15000, pedidos: 25000, ...(cfg.intervalos || {}) };
+  const intervalos = { espera: 5000, cola: 15000, pedidos: 25000, pago: 3000, ...(cfg.intervalos || {}) };
   const cacheCatalogo = cfg.cacheCatalogo || { leer: () => null, escribir: () => {} };
 
   const estado = { rol: null, correo: '', conectado: true, pendientes: 0, destino: null, espera: [], pestana: 'espera', temporizadores: [] };
@@ -24,6 +24,7 @@ export function crearPos(cfg) {
   const pestanas = [];
   const avisos = h('div', { class: 'avisos', role: 'status', 'aria-live': 'polite' });
   const cabecera = h('header', { class: 'cabecera' });
+  const bandaRed = h('div', { class: 'banda-sin-red', role: 'alert', 'data-campo': 'banda-sin-red', hidden: true });
   const nav = h('nav', { class: 'pestanas', 'aria-label': 'Secciones' });
   const principal = h('main', { class: 'principal' });
   let cat = null;
@@ -31,6 +32,7 @@ export function crearPos(cfg) {
 
   const ctx = {
     api, cola, sonido,
+    almacenVenta: cfg.almacenVenta || null,    // dónde recordar la venta abierta (en pruebas, nada)
     get cat() { return cat; },
     esDueno: () => estado.rol === 'dueno',
     enLinea,
@@ -48,9 +50,18 @@ export function crearPos(cfg) {
       if (nombre === 'caja' || nombre === 'espera' || nombre === 'pedidos') vistas[nombre].refrescar();
     },
     avisar(mensaje, tipo) {
-      const a = h('p', { class: 'aviso-flotante ' + (tipo || 'ok') }, mensaje);
+      if (tipo === 'error') {
+        // Los avisos de error se quedan hasta que se cierran: nadie debería perderse un error por no alcanzar a leerlo.
+        for (const x of [...avisos.children]) if (x.dataset.mensaje === mensaje) x.remove();
+        const cerrar = h('button', { type: 'button', class: 'cerrar-aviso', 'data-accion': 'cerrar-aviso', 'aria-label': 'Cerrar aviso' }, '×');
+        const a = h('p', { class: 'aviso-flotante error', 'data-mensaje': mensaje, role: 'alert' }, h('span', null, mensaje), cerrar);
+        cerrar.addEventListener('click', () => a.remove());
+        avisos.append(a);
+        return;
+      }
+      const a = h('p', { class: 'aviso-flotante ok' }, mensaje);
       avisos.append(a);
-      luego(() => { if (a.parentNode) a.parentNode.removeChild(a); }, tipo === 'error' ? 8000 : 4000);
+      luego(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 4000);
     },
     marcarConexion(ok) {
       const antes = estado.conectado;
@@ -69,6 +80,12 @@ export function crearPos(cfg) {
 
   // ---------------------------------------------------------------- Cabecera
   function pintarCabecera() {
+    // Franja roja bien visible mientras no hay conexión con el servidor.
+    const sinRed = !(estado.conectado && enLinea());
+    agregar(vaciar(bandaRed),
+      sinRed ? h('strong', null, 'SIN CONEXIÓN CON EL SERVIDOR') : null,
+      sinRed ? h('span', null, ' Puedes seguir vendiendo, pero el iPad no ve los pedidos nuevos y los clientes no pueden registrarse ni pagar con QR hasta que vuelva.') : null);
+    bandaRed.hidden = !sinRed;
     agregar(vaciar(cabecera),
       h('strong', { class: 'marca-pos' }, 'Naidi POS'),
       h('span', { class: 'pastilla ' + (estado.conectado && enLinea() ? 'en-linea' : 'sin-conexion'), 'data-campo': 'conexion' },
@@ -157,7 +174,7 @@ export function crearPos(cfg) {
     // Al abrir el turno se pide activar el sonido: los navegadores lo bloquean hasta que alguien toca la pantalla.
     pintarCabecera();
     reportesCliente = crearReportesCliente(ctx);
-    vaciar(raiz).append(cabecera, nav, avisos, reportesCliente.el, principal);
+    vaciar(raiz).append(cabecera, bandaRed, nav, avisos, reportesCliente.el, principal);
     ctx.irA('espera');
 
     await Promise.all([vistas.espera.refrescar(), vistas.pedidos.refrescar(), reportesCliente.refrescar(), actualizarPendientes()]);
@@ -166,7 +183,11 @@ export function crearPos(cfg) {
     try { estado.desuscribir = api.suscribirEspera(() => vistas.espera.refrescar()); } catch (e) { estado.desuscribir = null; }
     estado.temporizadores.push(cadaTanto(() => { vistas.espera.refrescar(); reportesCliente.refrescar(); }, intervalos.espera));
     estado.temporizadores.push(cadaTanto(() => sincronizarCola(), intervalos.cola));
+    // Pedido esperando el cobro: se mira seguido si el cliente ya pagó con Bold escaneando el QR del iPad.
+    estado.temporizadores.push(cadaTanto(() => vistas.venta.revisarPago(), intervalos.pago));
     if (estado.pendientes && enLinea()) sincronizarCola();
+    // Si había una venta confirmada esperando el pago (o en edición) antes de recargar, se retoma.
+    await vistas.venta.retomarAbierta();
   }
 
   // ---------------------------------------------------------------- Arranque

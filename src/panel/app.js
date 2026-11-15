@@ -56,7 +56,41 @@ export function crearPanel(cfg) {
       h('span', { class: 'relleno' }),
       h('span', { class: 'pequeno' }, estado.correo),
       h('button', { type: 'button', class: 'btn', 'data-accion': 'mi-pin', onclick: () => fijarPin() }, 'Mi PIN'),
+      h('button', { type: 'button', class: 'btn', 'data-accion': 'olvide-pin', onclick: () => olvidePin() }, 'Olvidé mi PIN'),
       h('button', { type: 'button', class: 'btn', 'data-accion': 'salir', onclick: salir }, 'Salir'));
+  }
+
+  // Pide el PIN nuevo dos veces. Devuelve null si se cancela o no coinciden (ya avisó).
+  async function pedirNuevoPin(titulo) {
+    const pedir = (t, etiqueta) => pedirTexto({ titulo: t, etiqueta, boton: 'Seguir', tipo: 'password', inputmode: 'numeric' });
+    const nuevo = await pedir(titulo, 'PIN nuevo (4 a 8 dígitos)');
+    if (!nuevo) return null;
+    if (!/^[0-9]{4,8}$/.test(nuevo)) { ctx.avisar('El PIN debe tener entre 4 y 8 dígitos, solo números.', 'error'); return null; }
+    const repetido = await pedir('Repite el PIN', 'Escríbelo otra vez');
+    if (!repetido) return null;
+    if (repetido !== nuevo) { ctx.avisar('Los dos PIN no coinciden. No se cambió nada.', 'error'); return null; }
+    return nuevo;
+  }
+
+  // "Olvidé mi PIN": se demuestra que eres el dueño con el código de tu app de verificación (el servidor exige que sea
+  // reciente) y se crea un PIN nuevo sin pedir el anterior. Sirve también si el PIN quedó bloqueado.
+  async function olvidePin() {
+    let factor;
+    try { factor = await api.mfaFactor(); } catch (e) { ctx.avisar(e.name === 'ErrorRed' ? 'Sin conexión.' : e.message, 'error'); return; }
+    if (!factor) { ctx.avisar('Tu cuenta no tiene verificación en dos pasos activa.', 'error'); return; }
+    const codigo = await pedirTexto({ titulo: 'Recuperar mi PIN', etiqueta: 'Código de tu app de verificación (6 dígitos)', boton: 'Seguir', inputmode: 'numeric' });
+    if (!codigo) return;
+    try { await api.mfaVerificar(factor, codigo); } catch (e) { ctx.avisar(e.name === 'ErrorRed' ? 'Sin conexión.' : e.message, 'error'); return; }
+    const nuevo = await pedirNuevoPin('Crea tu PIN nuevo');
+    if (!nuevo) return;
+    let r;
+    try { r = await api.restablecerPin(nuevo); } catch (e) { ctx.avisar(e.message, 'error'); return; }
+    if (r && r.ok === false) {
+      ctx.avisar(r.error === 'verificacion_vencida' ? 'Pasaron más de 5 minutos desde tu verificación. Vuelve a empezar.' : 'No se pudo restablecer el PIN.', 'error');
+      return;
+    }
+    avisoSinPin.hidden = true;
+    ctx.avisar('PIN restablecido. Ya puedes usarlo.', 'ok');
   }
 
   // Crear o cambiar el PIN. Si ya hay uno, se pide el actual; el servidor cuenta los intentos fallidos.
@@ -68,13 +102,8 @@ export function crearPanel(cfg) {
       actual = await pedirPin('PIN actual');
       if (!actual) return;
     }
-    const pedirNuevo = (titulo, etiqueta) => pedirTexto({ titulo, etiqueta, boton: 'Seguir', tipo: 'password', inputmode: 'numeric' });
-    const nuevo = await pedirNuevo(tiene ? 'Nuevo PIN' : 'Crea tu PIN', 'PIN nuevo (4 a 8 dígitos)');
+    const nuevo = await pedirNuevoPin(tiene ? 'Nuevo PIN' : 'Crea tu PIN');
     if (!nuevo) return;
-    if (!/^[0-9]{4,8}$/.test(nuevo)) { ctx.avisar('El PIN debe tener entre 4 y 8 dígitos, solo números.', 'error'); return; }
-    const repetido = await pedirNuevo('Repite el PIN', 'Escríbelo otra vez');
-    if (!repetido) return;
-    if (repetido !== nuevo) { ctx.avisar('Los dos PIN no coinciden. No se cambió nada.', 'error'); return; }
     let r;
     try { r = await api.fijarPin(nuevo, actual); } catch (e) { ctx.avisar(e.message, 'error'); return; }
     if (r && r.ok === false) { ctx.avisar(mensajePin(r), 'error'); return; }

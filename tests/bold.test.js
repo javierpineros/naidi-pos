@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
-import { diagnosticarFirma, firmaIntegridad, firmaWebhook, firmaValida, iguales, normalizarEvento, eventoDeVoucher } from '../supabase/functions/_shared/bold.ts';
-import { manejarCheckout, manejarWebhook, manejarConciliacion, manejarVerificacion } from '../supabase/functions/_shared/manejadores.ts';
+import { diagnosticarFirma, firmaIntegridad, firmaWebhook, firmaValida, iguales, normalizarEvento, eventoDeVoucher, constanciaDeVoucher } from '../supabase/functions/_shared/bold.ts';
+import { manejarCheckout, manejarWebhook, manejarConciliacion, manejarVerificacion, manejarCheckoutVenta, manejarVerificacionVenta } from '../supabase/functions/_shared/manejadores.ts';
 
 const SECRETA = 'llave-secreta-de-prueba';
 const IDENTIDAD = 'llave-identidad-de-prueba';
@@ -130,6 +130,14 @@ describe('Bold: lectura de eventos', () => {
     expect(eventoDeVoucher('NW41-a', { payment_status: 'REJECTED' }).tipo).toBe('SALE_REJECTED');
     expect(eventoDeVoucher('NW41-a', { payment_status: 'VOIDED' }).tipo).toBe('VOID_APPROVED');
     expect(eventoDeVoucher('NW41-a', { payment_status: 'PROCESSING' })).toBeNull();
+  });
+  it('del comprobante real de Bold toma transaction_id y conserva la constancia sin datos personales', () => {
+    const voucher = { link_id: 'BTN_X', total: 68800, subtotal: 68800, reference_id: 'V1-a', payment_status: 'APPROVED', transaction_id: 'T_ABC',
+      payer_email: 'alguien@correo.test', transaction_date: '2026-11-15 15:06:33-05:00', payment_method: 'PSE' };
+    expect(eventoDeVoucher('V1-a', voucher)).toMatchObject({ tipo: 'SALE_APPROVED', monto: 68800, boldPaymentId: 'T_ABC', medio: 'PSE' });
+    const c = constanciaDeVoucher(voucher);
+    expect(c).toMatchObject({ origen: 'conciliacion', transaction_id: 'T_ABC', link_id: 'BTN_X', transaction_date: '2026-11-15 15:06:33-05:00', total: 68800 });
+    expect(JSON.stringify(c)).not.toContain('alguien@correo.test');
   });
 });
 
@@ -346,5 +354,70 @@ describe('Bold: verificación del cliente', () => {
   it('si Bold aún no tiene el pago (404), no cambia nada', async () => {
     const { deps } = depsFalsas({ respuestas: pendientes, fetch: async () => new Response('{}', { status: 404 }) });
     expect((await (await manejarVerificacion(pedir({ pedido_id: 'p' }, 'Bearer j'), deps)).json()).resumen).toEqual({ 'NW1-a': 'sin_voucher_404' });
+  });
+});
+
+describe('Bold: pago con QR de una venta del POS (sin cuenta)', () => {
+  const CODIGO = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+  const pedir = (cuerpo, metodo) => new Request('https://x.test/bold-checkout-venta', { method: metodo || 'POST', body: metodo === 'GET' ? undefined : JSON.stringify(cuerpo) });
+  const iniciar = { iniciar_pago_venta_qr: { data: { order_id: 'V57-abcdef0123', monto_cop: 21500, moneda: 'COP', descripcion: 'Compra #57 · Naidí' }, error: null } };
+
+  it('devuelve los datos firmados con el monto que decide la base de datos, usando solo la llave del servidor', async () => {
+    const { deps, llamadas } = depsFalsas({ respuestas: iniciar });
+    const r = await manejarCheckoutVenta(pedir({ codigo: CODIGO, monto: 1, amount: 1 }), deps);
+    expect(r.status).toBe(200);
+    const j = await r.json();
+    expect(j).toMatchObject({ apiKey: IDENTIDAD, orderId: 'V57-abcdef0123', amount: 21500, currency: 'COP', redirectionUrl: 'https://naidi.test/pagar/?c=' + CODIGO });
+    expect(j.integritySignature).toBe(createHash('sha256').update('V57-abcdef0123' + '21500' + 'COP' + SECRETA).digest('hex'));
+    expect(JSON.stringify(j)).not.toContain(SECRETA);
+    // El cliente solo aporta el código: ni el monto ni nada más llega a la base de datos.
+    expect(llamadas).toEqual([{ quien: 'servicio', nombre: 'iniciar_pago_venta_qr', args: { p_codigo: CODIGO } }]);
+  });
+
+  it('no pide inicio de sesión, pero rechaza códigos mal formados antes de tocar la base de datos', async () => {
+    const { deps, llamadas } = depsFalsas({ respuestas: iniciar });
+    for (const codigo of ['', 'corto', CODIGO + 'zz', "'; drop table ventas; --", 123]) {
+      expect((await manejarCheckoutVenta(pedir({ codigo }), deps)).status).toBe(400);
+    }
+    expect(llamadas).toEqual([]);
+  });
+
+  it('con Bold sin configurar, bandera apagada o venta cerrada responde sin inventar nada', async () => {
+    expect((await manejarCheckoutVenta(pedir({ codigo: CODIGO }), depsFalsas({ secretos: { secreta: '' } }).deps)).status).toBe(503);
+    const apagada = depsFalsas({ respuestas: { iniciar_pago_venta_qr: { data: null, error: { message: 'El pago en línea todavía no está disponible.' } } } }).deps;
+    expect((await manejarCheckoutVenta(pedir({ codigo: CODIGO }), apagada)).status).toBe(404);
+    const cerrada = depsFalsas({ respuestas: { iniciar_pago_venta_qr: { data: null, error: { message: 'Esta compra ya está pagada.' } } } }).deps;
+    const r = await manejarCheckoutVenta(pedir({ codigo: CODIGO }), cerrada);
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toContain('ya está pagada');
+    expect((await manejarCheckoutVenta(pedir(null, 'GET'), depsFalsas().deps)).status).toBe(405);
+    expect((await manejarCheckoutVenta(new Request('https://x.test', { method: 'OPTIONS' }), depsFalsas().deps)).status).toBe(204);
+  });
+
+  it('en desarrollo con http no manda redirectionUrl (Bold solo acepta https)', async () => {
+    const { deps } = depsFalsas({ respuestas: iniciar, secretos: { sitio: 'http://localhost:5173' } });
+    expect((await (await manejarCheckoutVenta(pedir({ codigo: CODIGO }), deps)).json()).redirectionUrl).toBeNull();
+  });
+
+  describe('verificación', () => {
+    const pendientes = { pagos_bold_pendientes_venta: { data: [{ order_id: 'V57-a' }], error: null }, estado_pago_venta_qr: { data: { estado: 'pagada', total_cop: 21500 }, error: null } };
+    const voucher = (estado) => async () => new Response(JSON.stringify({ payment_status: estado, transaction_id: 'bp-9', amount: { total: 21500, currency: 'COP' }, payment_method: 'CARD' }), { status: 200 });
+
+    it('pregunta a Bold por los intentos pendientes de esa venta y responde cómo quedó, sin aplicar nada del cliente', async () => {
+      const { deps, llamadas } = depsFalsas({ respuestas: pendientes, fetch: voucher('APPROVED') });
+      const r = await manejarVerificacionVenta(pedir({ codigo: CODIGO }), deps);
+      expect(r.status).toBe(200);
+      expect(await r.json()).toMatchObject({ estado: 'pagada', total_cop: 21500, revisados: 1 });
+      expect(llamadas.map((l) => l.nombre)).toEqual(['pagos_bold_pendientes_venta', 'aplicar_evento_bold', 'estado_pago_venta_qr']);
+      expect(llamadas.every((l) => l.quien === 'servicio')).toBe(true);
+    });
+
+    it('sin intentos pendientes solo informa el estado, y rechaza códigos mal formados', async () => {
+      const { deps, llamadas } = depsFalsas({ respuestas: { ...pendientes, pagos_bold_pendientes_venta: { data: [], error: null } } });
+      expect((await (await manejarVerificacionVenta(pedir({ codigo: CODIGO }), deps)).json()).revisados).toBe(0);
+      expect(llamadas.map((l) => l.nombre)).toEqual(['pagos_bold_pendientes_venta', 'estado_pago_venta_qr']);
+      expect((await manejarVerificacionVenta(pedir({ codigo: 'nope' }), deps)).status).toBe(400);
+      expect((await manejarVerificacionVenta(pedir({ codigo: CODIGO }), depsFalsas({ secretos: { identidad: '' } }).deps)).status).toBe(503);
+    });
   });
 });

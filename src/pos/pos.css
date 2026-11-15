@@ -85,7 +85,11 @@ label input, label select { margin-top: 4px; font-weight: 400; }
 
 .avisos { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 30; display: grid; gap: 8px; pointer-events: none; }
 .aviso-flotante { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--brand); color: #fff; box-shadow: 0 6px 20px var(--sombra); }
-.aviso-flotante.error { background: var(--error); }
+.aviso-flotante.error { background: var(--error); display: flex; align-items: flex-start; gap: 12px; pointer-events: auto; font-weight: 600; }
+.aviso-flotante.error span { flex: 1; }
+.cerrar-aviso { flex: none; min-width: 36px; min-height: 36px; border: 0; border-radius: 18px; background: rgba(255,255,255,.25); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
+.banda-sin-red { padding: 12px 16px; background: var(--error); color: #fff; text-align: center; border-bottom: 4px solid rgba(0,0,0,.25); }
+.banda-sin-red[hidden] { display: none; }
 .aviso { padding: 12px; margin: 12px 0; border-radius: var(--radio); background: var(--surface-2); border: 1px solid var(--border); }
 
 /* Acceso */
@@ -136,6 +140,8 @@ label input, label select { margin-top: 4px; font-weight: 400; }
 .premio span { flex: 1; min-width: 160px; font-weight: 600; }
 .premio select { width: auto; max-width: 220px; }
 .pago { margin-top: 12px; padding-top: 8px; border-top: 2px solid var(--border); }
+.aviso-ipad { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px; margin: 6px 0; border: 1px dashed var(--accent); border-radius: 12px; }
+.aviso-ipad p { flex: 1; min-width: 200px; margin: 0; font-weight: 600; }
 .acciones { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 12px; }
 .listo { text-align: center; }
 .qr-posventa { max-width: 260px; margin: 12px auto; }

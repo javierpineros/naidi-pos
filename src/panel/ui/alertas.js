@@ -6,6 +6,8 @@ import { mensajePin } from '../../pos/ui/caja.js';
 
 const ESTADO_PEDIDO = { cancelado: 'cancelado', no_llego: 'marcado como "No llegó"', entregado: 'entregado', recibido: 'recibido', preparando: 'en preparación', listo: 'listo' };
 
+const ESTADO_VENTA = { cancelada: 'cancelada', anulada: 'anulada', pagada: 'pagada', alistando: 'en modificación', confirmada: 'confirmada' };
+
 export function quienEs(a) {
   const c = a.cliente;
   if (!c) return 'Una cuenta';
@@ -26,19 +28,26 @@ export function textoAlerta(a) {
       return quienEs(a) + ' llegó al tope diario de reclamos de QR.';
     case 'cliente_reporta':
       return quienEs(a) + ' reporta que su pedido no es lo que pidió' + (d.nota ? ': «' + d.nota + '»' : '') + '.';
-    case 'pago_bold':
+    case 'pago_bold': {
+      // Un pago puede ser de un pedido web ("pedido #n") o de una compra del POS pagada con el QR del iPad ("compra #n").
+      const ref = d.venta ? 'la compra #' + d.venta : 'el pedido #' + d.pedido;
       switch (d.motivo) {
         case 'monto_distinto':
-          return 'Bold recibió ' + fmtCop(d.recibido) + ' por el pedido #' + d.pedido + ' y se esperaban ' + fmtCop(d.esperado) + '. No se acreditó: revisa en Bold y, si cobraron de más, devuélvelo.';
+          return 'Bold recibió ' + fmtCop(d.recibido) + ' por ' + ref + ' y se esperaban ' + fmtCop(d.esperado) + '. No se acreditó: revisa en Bold y, si cobraron de más, devuélvelo.';
         case 'pago_duplicado':
-          return 'Hay un pago repetido de ' + fmtCop(d.monto) + ' para el pedido #' + d.pedido + '. Hay que devolver uno en Bold.';
+          return 'Hay un pago repetido de ' + fmtCop(d.monto) + ' para ' + ref + '. Hay que devolver uno en Bold.';
         case 'pedido_cerrado':
-          return 'Bold cobró ' + fmtCop(d.monto) + ' por el pedido #' + d.pedido + ', que ya estaba ' + (ESTADO_PEDIDO[d.estado_pedido] || d.estado_pedido) + '. Hay que devolverlo en Bold.';
+          return 'Bold cobró ' + fmtCop(d.monto) + ' por ' + ref + ', que ya estaba ' + (ESTADO_PEDIDO[d.estado_pedido] || d.estado_pedido) + '. Hay que devolverlo en Bold.';
+        case 'venta_no_cobrable':
+          return 'Bold cobró ' + fmtCop(d.monto) + ' por ' + ref + ', pero la compra ya estaba ' + (ESTADO_VENTA[d.estado_venta] || d.estado_venta) + ' o cambió de total (' + fmtCop(d.total_venta) + '). No se acreditó: devuélvelo en Bold o cóbrale la diferencia.';
         case 'anulado_pedido_cerrado':
           return 'Bold anuló un pago del pedido #' + d.pedido + ' (ya ' + (ESTADO_PEDIDO[d.estado_pedido] || d.estado_pedido) + '). Revisa que la devolución quedó hecha.';
+        case 'anulado_venta_pagada':
+          return 'Bold anuló el pago de ' + ref + ', que ya figuraba pagada. Decide si anulas la venta (con tu PIN) o cobras de otra forma.';
         default:
           return 'Alerta de un pago en línea para revisar en Bold.';
       }
+    }
     default:
       return 'Alerta: ' + a.tipo;
   }

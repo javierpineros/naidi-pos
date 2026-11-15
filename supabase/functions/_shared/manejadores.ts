@@ -1,6 +1,6 @@
 // Manejadores HTTP de las Edge Functions de Bold. Reciben sus dependencias (secretos, clientes de Supabase, fetch)
 // para que las mismas funciones corran en Deno y en las pruebas de Node. Las llaves de Bold salen solo de los secretos.
-import { diagnosticarFirma, eventoDeVoucher, firmaIntegridad, firmaValida, firmaValidaConLlaveVacia, normalizarEvento } from './bold.ts';
+import { constanciaDeVoucher, diagnosticarFirma, eventoDeVoucher, firmaIntegridad, firmaValida, firmaValidaConLlaveVacia, normalizarEvento } from './bold.ts';
 
 export interface Secretos {
   identidad: string;        // llave de identidad (pública: va en el botón)
@@ -141,11 +141,12 @@ async function conciliarOrden(d: Dependencias, orderId: string): Promise<string>
       headers: { Authorization: 'x-api-key ' + d.secretos.identidad, 'Content-Type': 'application/json' },
     });
     if (r.status !== 200) return 'sin_voucher_' + r.status;
-    const e = eventoDeVoucher(orderId, await r.json());
+    const voucher = await r.json();
+    const e = eventoDeVoucher(orderId, voucher);
     if (!e) return 'sin_cambio';
     const { data, error: err } = await d.clienteServicio.rpc('aplicar_evento_bold', {
       p_evento_id: e.eventoId, p_tipo: e.tipo, p_order_id: e.orderId, p_bold_payment_id: e.boldPaymentId,
-      p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: { origen: 'conciliacion' },
+      p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: constanciaDeVoucher(voucher),
     });
     return err ? 'error' : String(data && data.resultado);
   } catch (_e) {
@@ -171,4 +172,57 @@ export async function manejarVerificacion(req: Request, d: Dependencias): Promis
   const resumen: Record<string, string> = {};
   for (const p of (data || [])) resumen[p.order_id] = await conciliarOrden(d, p.order_id);
   return json({ revisados: Object.keys(resumen).length, resumen }, 200, cors);
+}
+
+// ------------------------------------------------------------------ H8c: pago con QR de una venta del POS (sin cuenta)
+// La persona escaneó el QR del iPad y llega con un código largo y aleatorio de la venta. Con la llave del servidor se piden
+// los datos del pago; el monto sale del total guardado de la venta y el código solo sirve mientras la venta está sin pagar.
+const FORMA_CODIGO = /^[0-9a-f]{32}$/;
+
+async function codigoDeLaPeticion(req: Request): Promise<string> {
+  try { return String((await req.json()).codigo || '').trim().toLowerCase(); } catch (_e) { return ''; }
+}
+
+export async function manejarCheckoutVenta(req: Request, d: Dependencias): Promise<Response> {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CABECERAS_CORS });
+  const cors = CABECERAS_CORS;
+  if (req.method !== 'POST') return json({ error: 'Método no permitido.' }, 405, cors);
+  if (!d.secretos.identidad || !d.secretos.secreta) return json({ error: 'El pago en línea todavía no está disponible.' }, 503, cors);
+  const codigo = await codigoDeLaPeticion(req);
+  if (!FORMA_CODIGO.test(codigo)) return json({ error: 'Este código de pago no es válido.' }, 400, cors);
+
+  const { data, error } = await d.clienteServicio.rpc('iniciar_pago_venta_qr', { p_codigo: codigo });
+  if (error) {
+    const msg = String(error.message || 'No se pudo iniciar el pago.');
+    return json({ error: msg }, /no está disponible/i.test(msg) ? 404 : 400, cors);
+  }
+  const firma = await firmaIntegridad(data.order_id, data.monto_cop, data.moneda, d.secretos.secreta);
+  return json({
+    apiKey: d.secretos.identidad,
+    orderId: data.order_id,
+    amount: data.monto_cop,
+    currency: data.moneda,
+    integritySignature: firma,
+    description: data.descripcion,
+    // Bold agrega sus parámetros con "?" o "&": el código va en la consulta (no en el #) para que no se pierda al volver.
+    redirectionUrl: d.secretos.sitio.startsWith('https://') ? d.secretos.sitio + '/pagar/?c=' + codigo : null,
+  }, 200, cors);
+}
+
+// "Ya pagué, ¿llegó?": pregunta a Bold por los intentos pendientes de esa venta y responde cómo quedó. No aplica nada que venga del cliente.
+export async function manejarVerificacionVenta(req: Request, d: Dependencias): Promise<Response> {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CABECERAS_CORS });
+  const cors = CABECERAS_CORS;
+  if (req.method !== 'POST') return json({ error: 'Método no permitido.' }, 405, cors);
+  if (!d.secretos.identidad) return json({ error: 'El pago en línea todavía no está disponible.' }, 503, cors);
+  const codigo = await codigoDeLaPeticion(req);
+  if (!FORMA_CODIGO.test(codigo)) return json({ error: 'Este código de pago no es válido.' }, 400, cors);
+
+  const { data: pendientes, error } = await d.clienteServicio.rpc('pagos_bold_pendientes_venta', { p_codigo: codigo });
+  if (error) return json({ error: 'No se pudo verificar el pago.' }, 500, cors);
+  const resumen: Record<string, string> = {};
+  for (const p of (pendientes || [])) resumen[p.order_id] = await conciliarOrden(d, p.order_id);
+  const { data: estado, error: err2 } = await d.clienteServicio.rpc('estado_pago_venta_qr', { p_codigo: codigo });
+  if (err2) return json({ error: 'No se pudo verificar el pago.' }, 500, cors);
+  return json({ ...estado, revisados: Object.keys(resumen).length }, 200, cors);
 }

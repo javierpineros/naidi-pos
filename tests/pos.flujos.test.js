@@ -45,6 +45,35 @@ describe('acceso del personal', () => {
     expect($('[data-vista="espera"]')).toBeNull();
   });
 
+  it('tras un código incorrecto o vencido se puede reenviar uno nuevo o cambiar de correo', async () => {
+    const api = crearFakeApi();
+    await montarPos(api);
+    await escribir('[data-campo="correo"]', 'cajero@naidi.test');
+    await click('[data-accion="enviar-codigo"]');
+    await escribir('[data-campo="codigo"]', '000000');
+    await click('[data-accion="verificar-codigo"]');
+    expect(texto('[data-zona="error"]')).toMatch(/no es correcto/);
+    await click('[data-accion="reenviar-codigo"]');
+    expect(texto('[data-zona="aviso"]')).toMatch(/código nuevo/);
+    expect(texto('[data-zona="error"]')).toBe('');
+    expect($('[data-campo="codigo"]').value).toBe('');
+    await click('[data-accion="otro-correo"]');
+    expect($('[data-campo="correo"]')).not.toBeNull();
+  });
+
+  it('desde el segundo factor del dueño se puede volver al inicio', async () => {
+    const api = crearFakeApi({ rol: 'dueno', factor: 'f-9' });
+    await montarPos(api);
+    await escribir('[data-campo="correo"]', 'dueno@naidi.test');
+    await click('[data-accion="enviar-codigo"]');
+    await escribir('[data-campo="codigo"]', '123456');
+    await click('[data-accion="verificar-codigo"]');
+    expect($('[data-campo="mfa"]')).not.toBeNull();
+    await click('[data-accion="volver-acceso"]');
+    expect($('[data-campo="correo"]')).not.toBeNull();
+    expect(api._s.sesion).toBeNull();
+  });
+
   it('una cuenta que no es del personal no entra', async () => {
     const api = crearFakeApi({ tienePerfil: false });
     await montarPos(api);
@@ -199,6 +228,16 @@ describe('venta con cliente', () => {
     return m;
   }
 
+  it('el premio de toppings gratis no se ofrece sobre productos sin toppings con costo', async () => {
+    const api = crearFakeApi({ espera: [copia(MARIA)], vouchers: vouchers() });
+    await atenderAMaria(api);
+    await click('[data-producto="espresso"]');                            // un café: sin toppings
+    const premio = $('[data-premio="w-1"]');
+    expect(premio.querySelector('[data-campo="linea-premio"]')).toBeNull();
+    expect(premio.querySelector('[data-campo="premio-sin-lineas"]').textContent).toContain('Ningún producto tiene toppings con costo');
+    expect(premio.querySelector('[data-accion="aplicar-premio"]').disabled).toBe(true);
+  });
+
   it('atender abre la venta del cliente en el servidor y marca la alerta como vista', async () => {
     const api = crearFakeApi({ espera: [copia(MARIA)], vouchers: vouchers() });
     const m = await atenderAMaria(api);
@@ -346,6 +385,35 @@ describe('venta sin cliente', () => {
     expect(v.venta_lineas.length).toBe(2);
   });
 
+  it('confirmada sin conexión avisa que el iPad no la ve y "Enviar al iPad" la pasa al servidor al volver la red', async () => {
+    const api = crearFakeApi();
+    const red = { on: true };
+    await entrarComoPersonal(api, { enLinea: () => red.on });
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-atajo="amazonas:pequeno"]');
+    red.on = false; api._s.red = false;
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+    expect(api._s.ventas.size).toBe(0);
+
+    await click('[data-accion="enviar-ipad"]');                           // sigue sin red: no pasa nada y el aviso permanece
+    expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+    expect(api._s.ventas.size).toBe(0);
+
+    red.on = true; api._s.red = true;
+    await click('[data-accion="enviar-ipad"]');
+    expect($('[data-campo="sin-ipad"]')).toBeNull();
+    expect($('[data-accion="modificar-pedido"]')).not.toBeNull();         // ya es una venta del servidor
+    const v = [...api._s.ventas.values()][0];
+    expect(v).toMatchObject({ estado: 'confirmada', cliente_id: null });
+    expect(v.venta_lineas.length).toBe(2);
+    await click('[data-medio="datafono_bold"]');
+    await click('[data-accion="registrar-pago"]');
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado ✓');
+    expect(api._s.ventas.size).toBe(1);                                   // una sola venta, sin duplicar
+  });
+
   it('SIN internet: guarda la venta localmente y la sincroniza cuando vuelve la conexión (una sola vez)', async () => {
     const api = crearFakeApi();
     const red = { on: true };
@@ -387,6 +455,63 @@ describe('venta sin cliente', () => {
     expect(texto('[data-campo="total"]')).toBe('$18.800');
   });
 
+  it('los avisos de error no desaparecen solos: se cierran con la X, y sin conexión hay una franja roja', async () => {
+    const api = crearFakeApi();
+    const red = { on: true };
+    const m = await entrarComoPersonal(api, { enLinea: () => red.on });
+    expect($('[data-campo="banda-sin-red"]').hidden).toBe(true);
+    m.pos.ctx.avisar('Algo salió mal.', 'error');
+    m.pos.ctx.avisar('Algo salió mal.', 'error');                         // el mismo aviso no se apila
+    expect($$('.aviso-flotante.error').length).toBe(1);
+    await esperar(5);
+    expect($$('.aviso-flotante.error').length).toBe(1);
+    await click('[data-accion="cerrar-aviso"]');
+    expect($$('.aviso-flotante.error').length).toBe(0);
+
+    red.on = false; api._s.red = false;
+    m.pos.ctx.marcarConexion(false);
+    expect($('[data-campo="banda-sin-red"]').hidden).toBe(false);
+    expect(texto('[data-campo="banda-sin-red"]')).toContain('SIN CONEXIÓN');
+  });
+
+  it('un cliente que entra después de confirmar la venta sin conexión también se le puede asignar, y vuelve a armado', async () => {
+    const api = crearFakeApi();
+    const red = { on: true };
+    const m = await entrarComoPersonal(api, { enLinea: () => red.on });
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-atajo="amazonas:pequeno"]');
+    red.on = false; api._s.red = false;
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+    red.on = true; api._s.red = true;                                     // vuelve el internet y el cliente escanea el QR
+    api._s.espera.push(copia(MARIA));
+    await m.pos.vistas.espera.refrescar();
+    await esperar();
+    expect($('[data-campo="asignar"]')).not.toBeNull();
+    await click('[data-accion="asignar-cliente"]');
+    expect(texto('[data-campo="cliente"]')).toBe('Cliente: María P.');
+    expect(api._s.ventas.get('v-1').cliente_id).toBe('c-maria');
+    expect(api._s.ventas.get('v-1').venta_lineas.length).toBe(2);
+    expect($('[data-accion="confirmar-pedido"]')).not.toBeNull();          // quedó en armado: se confirma y se cobra con el cliente
+  });
+
+  it('un cliente que entra mientras se arma una venta sin cliente aparece y se le puede asignar', async () => {
+    const api = crearFakeApi();
+    const m = await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    expect($('[data-campo="asignar"]')).toBeNull();
+    api._s.espera.push(copia(MARIA));                                     // María escanea el QR del iPad
+    await m.pos.vistas.espera.refrescar();
+    await esperar();
+    expect($('[data-campo="asignar"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('Un cliente acaba de entrar');
+    await click('[data-accion="asignar-cliente"]');
+    expect(texto('[data-campo="cliente"]')).toBe('Cliente: María P.');
+    expect(api._s.ventas.get('v-1').cliente_id).toBe('c-maria');
+  });
+
   it('el efectivo exige monto suficiente y calcula el cambio', async () => {
     const api = crearFakeApi();
     await entrarComoPersonal(api);
@@ -400,6 +525,269 @@ describe('venta sin cliente', () => {
     expect(texto('[data-campo="cambio"]')).toBe('Cambio: $2.000');
     await click('[data-accion="registrar-pago"]');
     expect(texto('.listo')).toContain('Cambio: $2.000');
+  });
+});
+
+describe('venta visible en el iPad y modificable', () => {
+  const eventos = (api, nombre) => api._s.llamadas.filter((l) => l[0] === nombre);
+
+  it('sin cliente y con internet, confirmar manda la venta al servidor antes de cobrar (así el iPad la muestra)', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-producto="latte"]');
+    expect(api._s.ventas.size).toBe(0);                       // armando: todavía solo en el POS
+    await click('[data-accion="confirmar-pedido"]');
+    const v = [...api._s.ventas.values()][0];
+    expect(v).toMatchObject({ estado: 'confirmada', cliente_id: null });   // confirmada y sin pagar: el iPad ya la ve
+    expect(v.venta_lineas.length).toBe(2);
+    expect(texto('[data-campo="cliente"]')).toBe('Sin cliente');
+    expect($('[data-accion="modificar-pedido"]')).not.toBeNull();
+    await click('[data-medio="datafono_bold"]');
+    await click('[data-accion="registrar-pago"]');
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado ✓');
+    expect($('[data-campo="qr-posventa"] svg')).not.toBeNull();   // sin cliente: sigue el QR para reclamar puntos
+    expect(v.estado).toBe('pagada');
+    expect(eventos(api, 'crearVenta').length).toBe(1);
+  });
+
+  describe('la venta abierta sobrevive a recargar el POS', () => {
+    const memoria = () => { const m = { id: null, leer: () => m.id, escribir: (x) => { m.id = x; }, borrar: () => { m.id = null; } }; return m; };
+    const recargarPos = async (api, almacenVenta) => { await montarPos(api, { almacenVenta }); await esperar(12); };   // la sesión ya existe: entra directo
+    const confirmarUna = async (api, almacenVenta) => {
+      await entrarComoPersonal(api, { almacenVenta });
+      await click('[data-accion="venta-sin-cliente-espera"]');
+      await click('[data-producto="espresso"]');
+      await click('[data-accion="confirmar-pedido"]');
+      return [...api._s.ventas.values()][0];
+    };
+
+    it('una venta confirmada que espera el pago se retoma sola en la pantalla de cobro', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const v = await confirmarUna(api, almacenVenta);
+      expect(almacenVenta.id).toBe(v.id);                       // quedó recordada
+      // El POS se recarga (pestaña nueva): la venta sigue confirmada en el servidor y debe volver a verse.
+      await recargarPos(api, almacenVenta);
+      expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+      expect($('[data-vista="venta"]').hidden).toBe(false);
+      expect(texto('.avisos')).toContain('Retomé la venta');
+      expect(v.estado).toBe('confirmada');
+      expect(api._s.ventas.size).toBe(1);                       // no se creó otra
+    });
+
+    it('una venta confirmada recuperada tiene "Enviar al iPad" para volver a mostrarla al cliente', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const v = await confirmarUna(api, almacenVenta);
+      await recargarPos(api, almacenVenta);
+      await click('[data-accion="reenviar-ipad"]');
+      expect(api._s.llamadas.filter((l) => l[0] === 'mostrarEnIpad').length).toBe(1);
+      expect(texto('.avisos')).toContain('Pedido enviado al iPad');
+      expect(v.estado).toBe('confirmada');
+      expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+    });
+
+    it('una venta sin cliente que solo vive en el POS (confirmada sin conexión) sobrevive a recargar y se puede enviar al iPad', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const red = { on: true };
+      await entrarComoPersonal(api, { almacenVenta, enLinea: () => red.on });
+      await click('[data-accion="venta-sin-cliente-espera"]');
+      await click('[data-producto="espresso"]');
+      await click('[data-atajo="amazonas:pequeno"]');
+      red.on = false; api._s.red = false;
+      await click('[data-accion="confirmar-pedido"]');
+      expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+      expect(almacenVenta.id && almacenVenta.id.local.lineas.length).toBe(2);
+
+      red.on = true; api._s.red = true;                                   // vuelve el internet y el navegador se recarga
+      await montarPos(api, { almacenVenta, enLinea: () => red.on });
+      await esperar(12);
+      expect($('[data-campo="sin-ipad"]')).not.toBeNull();                // sigue ahí, en la pantalla de cobro
+      expect(texto('[data-campo="total"]')).toBe('$18.800');
+      expect(texto('.avisos')).toContain('Retomé la venta sin cliente');
+
+      await click('[data-accion="enviar-ipad"]');
+      expect($('[data-campo="sin-ipad"]')).toBeNull();
+      expect([...api._s.ventas.values()][0]).toMatchObject({ estado: 'confirmada' });
+      await click('[data-medio="datafono_bold"]');
+      await click('[data-accion="registrar-pago"]');
+      expect(almacenVenta.id).toBeNull();
+      expect(api._s.ventas.size).toBe(1);
+    });
+
+    it('al pagarla se olvida, y un POS nuevo arranca limpio', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      await confirmarUna(api, almacenVenta);
+      await click('[data-medio="datafono_bold"]');
+      await click('[data-accion="registrar-pago"]');
+      await click('[data-accion="nueva-venta"]');
+      expect(almacenVenta.id).toBeNull();
+      await recargarPos(api, almacenVenta);
+      expect($('[data-accion="registrar-pago"]')).toBeNull();
+      expect(texto('.avisos') || '').not.toContain('Retomé');
+    });
+
+    it('si la venta recordada ya se pagó (por ejemplo con Bold) no se retoma y se olvida', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const v = await confirmarUna(api, almacenVenta);
+      v.estado = 'pagada'; v.medio_pago = 'bold_online';          // el cliente pagó mientras el POS estaba cerrado
+      await recargarPos(api, almacenVenta);
+      expect($('[data-accion="registrar-pago"]')).toBeNull();
+      expect(almacenVenta.id).toBeNull();
+    });
+
+    it('sin conexión al arrancar conserva lo recordado para el próximo intento', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      almacenVenta.id = 'v-1';
+      api._s.ventas.set('v-1', { id: 'v-1', numero: 5, estado: 'confirmada', venta_lineas: [], total_cop: 3500 });
+      const original = api.venta;
+      api.venta = async () => { throw new ErrorRed(); };
+      await montarPos(api, { almacenVenta });
+      api.venta = original;
+      expect(almacenVenta.id).toBe('v-1');
+    });
+  });
+
+  it('si el cliente paga con Bold escaneando el QR del iPad, el POS lo muestra solo y no cobra de nuevo', async () => {
+    const api = crearFakeApi();
+    const m = await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+    const v = [...api._s.ventas.values()][0];
+    await m.pos.vistas.venta.revisarPago();
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();         // todavía sin pagar: sigue esperando el cobro
+    v.estado = 'pagada'; v.medio_pago = 'bold_online';                    // el servidor recibió la confirmación de Bold
+    await m.pos.vistas.venta.revisarPago();
+    await esperar();
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado con Bold ✓');
+    expect(texto('.listo')).toContain('No cobres nada más');
+    expect($('[data-accion="registrar-pago"]')).toBeNull();
+    expect(eventos(api, 'pagarVenta').length).toBe(0);
+    expect($('[data-accion="nueva-venta"]')).not.toBeNull();
+  });
+
+  it('si el cliente paga con Bold justo cuando el vendedor registra el cobro, no sale un error: se muestra que ya está pagada', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    const v = [...api._s.ventas.values()][0];
+    await click('[data-medio="datafono_bold"]');
+    v.estado = 'pagada'; v.medio_pago = 'bold_online';
+    await click('[data-accion="registrar-pago"]');
+    await esperar();
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado con Bold ✓');
+    expect(texto('.avisos')).not.toContain('Solo se cobra');
+  });
+
+  it('el cliente pide agregar algo: "Modificar pedido" reabre la venta, se agrega y se confirma de nuevo', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    const v = [...api._s.ventas.values()][0];
+    const totalAntes = v.total_cop;
+    await click('[data-accion="modificar-pedido"]');
+    expect(eventos(api, 'reabrirVenta').length).toBe(1);
+    expect(v.estado).toBe('alistando');
+    expect($('[data-accion="confirmar-pedido"]')).not.toBeNull();     // vuelve a armarse
+    expect($('[data-accion="registrar-pago"]')).toBeNull();
+    await click('[data-producto="latte"]');
+    expect(v.venta_lineas.length).toBe(2);
+    expect(v.total_cop).toBeGreaterThan(totalAntes);
+    await click('[data-accion="confirmar-pedido"]');
+    expect(v.estado).toBe('confirmada');
+    await click('[data-accion="monto-exacto"]');
+    await click('[data-accion="registrar-pago"]');
+    expect(v).toMatchObject({ estado: 'pagada' });
+    expect(v.venta_lineas.length).toBe(2);
+    expect([...api._s.ventas.values()].length).toBe(1);               // sigue siendo la misma venta
+  });
+
+  it('también se puede quitar un producto de una venta ya confirmada', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-producto="latte"]');
+    await click('[data-accion="confirmar-pedido"]');
+    await click('[data-accion="modificar-pedido"]');
+    await click('[data-accion="quitar-linea"]');
+    const v = [...api._s.ventas.values()][0];
+    expect(v.venta_lineas.length).toBe(1);
+    await click('[data-accion="confirmar-pedido"]');
+    expect(v.estado).toBe('confirmada');
+  });
+
+  it('una venta con cliente también se modifica después de confirmada', async () => {
+    const api = crearFakeApi({ espera: [copia(JUAN)] });
+    await entrarComoPersonal(api);
+    await click('[data-accion="atender"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    await click('[data-accion="modificar-pedido"]');
+    await click('[data-producto="latte"]');
+    await click('[data-accion="confirmar-pedido"]');
+    const v = api._s.ventas.get('v-1');
+    expect(v).toMatchObject({ estado: 'confirmada', cliente_id: 'c-juan' });
+    expect(v.venta_lineas.length).toBe(2);
+    expect(texto('[data-campo="cliente"]')).toBe('Cliente: Juan G.');
+  });
+
+  it('si el servidor no deja modificar (por ejemplo ya se pagó) lo dice y no cambia nada', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    api.reabrirVenta = async () => { throw new Error('Solo se modifica una venta confirmada y sin pagar (estado actual: pagada).'); };
+    await click('[data-accion="modificar-pedido"]');
+    expect(document.body.textContent).toContain('sin pagar');
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();       // sigue en la fase de cobro
+  });
+
+  it('si se cae la conexión a medio enviar, se reintenta sin duplicar la venta ni las líneas', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-producto="latte"]');
+    const original = api.agregarLinea;
+    let fallos = 0;
+    api.agregarLinea = async (id, l) => {
+      if (api._s.ventas.get(id).venta_lineas.length === 1 && fallos++ === 0) { const { ErrorRed } = await import('../src/lib/errores.js'); throw new ErrorRed(); }
+      return original(id, l);
+    };
+    await click('[data-accion="confirmar-pedido"]');
+    expect(document.body.textContent).toContain('Sin conexión');
+    expect($('[data-accion="registrar-pago"]')).toBeNull();           // todavía no pasó al cobro
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+    expect(api._s.ventas.size).toBe(1);
+    expect([...api._s.ventas.values()][0].venta_lineas.length).toBe(2);
+    expect([...api._s.ventas.values()][0].estado).toBe('confirmada');
+  });
+
+  it('descartar una venta reabierta la cancela', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    await click('[data-accion="modificar-pedido"]');
+    await click('[data-accion="descartar"]');
+    await click('[data-accion="si-confirmar"]');
+    expect([...api._s.ventas.values()][0].estado).toBe('cancelada');
   });
 });
 

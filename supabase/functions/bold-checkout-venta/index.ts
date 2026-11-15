@@ -1,0 +1,4 @@
+import { manejarCheckoutVenta } from '../_shared/manejadores.ts';
+import { dependenciasReales } from '../_shared/entorno.ts';
+
+Deno.serve((req) => manejarCheckoutVenta(req, dependenciasReales()));

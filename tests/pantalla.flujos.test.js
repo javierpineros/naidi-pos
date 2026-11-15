@@ -144,6 +144,58 @@ describe('pantalla del iPad: qué muestra', () => {
     expect(m.raiz.querySelector('svg')).toBeNull();
   });
 
+  it('mientras el vendedor modifica el pedido muestra lo que hay, avisa que se actualiza y no ofrece pagar todavía', async () => {
+    const actualizando = ventaConfirmada();
+    actualizando.venta.estado = 'actualizando';
+    m = montar({ llave: LLAVE, respuestas: [ventaConfirmada(), actualizando, ventaConfirmada()] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.textContent).toContain('Pagas en caja con');
+    await m.reloj.correr();
+    const t = m.raiz.textContent;
+    expect(t).toContain('Tu pedido');
+    expect(t).toContain('2 × Espresso');
+    expect(t).toContain('$27.900');
+    expect(t).toContain('Estamos actualizando tu pedido');
+    expect(t).not.toContain('Pagas en caja con');
+    expect(t).not.toContain('Total a pagar');
+    expect(t).not.toContain('@naidi');
+    await m.reloj.correr();                                   // el vendedor confirma de nuevo
+    expect(m.raiz.textContent).toContain('Pagas en caja con');
+    expect(m.raiz.textContent).not.toContain('Estamos actualizando');
+  });
+
+  it('con el pago en línea encendido muestra un QR que lleva a /pagar con el código de la venta', async () => {
+    const CODIGO = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    const datos = ventaConfirmada();
+    datos.venta.codigo_pago = CODIGO;
+    datos.formas_pago.push('bold_online');
+    m = montar({ llave: LLAVE, respuestas: [datos] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.textContent).toContain('Paga con tu celular');
+    expect(m.raiz.textContent).toContain('paga en línea con Bold');
+    expect(m.raiz.textContent).not.toContain('Pago en línea');         // no aparece como si fuera una ficha más
+    const svg = m.raiz.querySelector('[data-zona="pago-qr"] svg');
+    expect(svg.getAttribute('data-url')).toBe('https://naidi.test/pagar/#' + CODIGO);
+    // El total que se muestra sigue siendo el de la venta; el QR no lleva ningún monto.
+    expect(svg.getAttribute('data-url')).not.toMatch(/27900|monto|total/);
+  });
+
+  it('sin código de pago (bandera apagada) no hay QR, y mientras se actualiza el pedido tampoco', async () => {
+    m = montar({ llave: LLAVE, respuestas: [ventaConfirmada()] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('[data-zona="pago-qr"]')).toBeNull();
+    const act = ventaConfirmada();
+    act.venta.estado = 'actualizando';
+    act.venta.codigo_pago = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    m = montar({ llave: LLAVE, respuestas: [act] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('[data-zona="pago-qr"]')).toBeNull();
+  });
+
   it('un pedido largo avisa que se desliza y un total de seis cifras no se parte', async () => {
     const datos = ventaConfirmada();
     datos.venta.lineas = Array.from({ length: 10 }, (_, i) => ({ nombre: 'Bowl ' + (i + 1), tamano: 'Grande', cantidad: 1, toppings: [], precio_unitario_cop: 20000, descuento_cop: 0, total_cop: 20000 }));

@@ -64,8 +64,11 @@ export function crearVistaEspera(ctx) {
       else ctx.avisar(e.message, 'error');
       return;
     }
+    const antes = items.map((i) => i.cliente_id).sort().join(',');
     items = nuevos;
     ctx.setEspera(items);
+    // Si hay una venta sin cliente armándose, que vea de inmediato a quien acaba de entrar (para asignársela).
+    if (items.map((i) => i.cliente_id).sort().join(',') !== antes) ctx.vista('venta').alCambiarEspera(items);
     // Sonido solo una vez por cliente nuevo; la marca visual se queda en la lista hasta que la vean.
     let hayNuevoSinAviso = false;
     for (const it of items) {

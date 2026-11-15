@@ -1,13 +1,16 @@
 // Vista de venta. Dos modos:
-//  - "vivo": venta con cliente. Cada cambio pasa por el servidor (precios, premios y totales los calcula él).
-//  - "local": venta sin cliente. Se arma en el dispositivo y se cobra de una vez (admite vender sin internet).
+//  - "vivo": la venta ya existe en el servidor (con o sin cliente). Cada cambio pasa por él (precios, premios y totales
+//    los calcula él). Una venta sin cliente pasa a "vivo" al confirmarla, para que el iPad la muestre y el cliente la revise.
+//  - "local": venta sin cliente que aún se arma en el dispositivo (admite vender sin internet: si no hay conexión al
+//    confirmar, se cobra desde aquí y se sincroniza luego).
+// Una venta confirmada y sin pagar se puede "modificar": el servidor la reabre y el iPad sigue mostrándola mientras tanto.
 import { h, vaciar, agregar } from '../../lib/dom.js';
 import { fmtCop, MEDIOS } from '../../lib/format.js';
 import { precioLinea } from '../../lib/precio.js';
 import { qrSvg } from '../../lib/qr.js';
 import { crearPanelCatalogo, resumenLinea } from './catalogo.js';
 import { pedirTexto, confirmar } from './modal.js';
-import { nuevaClave, cobrarSinCliente } from '../vender.js';
+import { nuevaClave, cobrarSinCliente, confirmarSinClienteEnServidor } from '../vender.js';
 
 export function crearVistaVenta(ctx) {
   const el = h('section', { class: 'vista vista-venta', 'data-vista': 'venta' });
@@ -31,7 +34,7 @@ export function crearVistaVenta(ctx) {
       return await fn();
     } catch (e) {
       if (e.name === 'ErrorRed') {
-        ctx.avisar(v && v.modo === 'vivo'
+        ctx.avisar(v && v.modo === 'vivo' && v.cliente
           ? 'Sin conexión. Una venta con cliente necesita internet; si no vuelve, véndela sin cliente.'
           : 'Sin conexión con el servidor.', 'error');
       } else {
@@ -47,7 +50,7 @@ export function crearVistaVenta(ctx) {
   async function recargar() {
     if (!v || v.modo !== 'vivo') return;
     v.servidor = await ctx.api.venta(v.ventaId);
-    if (v.servidor && v.servidor.estado === 'alistando') v.vouchers = (await ctx.api.vouchersActivosDe(v.cliente.id)) || [];
+    if (v.servidor && v.servidor.estado === 'alistando' && v.cliente) v.vouchers = (await ctx.api.vouchersActivosDe(v.cliente.id)) || [];
   }
 
   // ---------------------------------------------------------------- Iniciar
@@ -74,6 +77,54 @@ export function crearVistaVenta(ctx) {
     });
   }
 
+  // La venta abierta en el servidor (confirmada sin pagar o en edición) se recuerda en este dispositivo: si el POS se recarga,
+  // se cierra la pestaña o se renueva la sesión, la venta sigue esperando el pago en vez de "desaparecer" de la pantalla.
+  const memoria = ctx.almacenVenta || { leer: () => null, escribir: () => {}, borrar: () => {} };
+  let recordando = false;   // hasta intentar retomar la venta guardada no se borra nada (la vista arranca vacía)
+  function recordar() {
+    const abierta = v && v.modo === 'vivo' && v.ventaId && v.fase !== 'listo';
+    // Una venta sin cliente que aún solo vive en el POS (armándose o confirmada sin conexión) también se recuerda completa:
+    // si el navegador se recarga, la venta no se pierde.
+    const local = v && v.modo === 'local' && v.fase !== 'listo' && v.lineas.length;
+    if (abierta) { recordando = true; memoria.escribir(v.ventaId); }
+    else if (local) {
+      recordando = true;
+      memoria.escribir({ local: { idem: v.idem, lineas: v.lineas, medio: v.medio, fase: v.fase, progreso: v.progreso } });
+    } else if (recordando) memoria.borrar();
+  }
+
+  // Al abrir el turno: si había una venta abierta, se vuelve a mostrar en la fase en que estaba (cobro o armado).
+  async function retomarAbierta() {
+    const id = memoria.leer();
+    if (!id) { recordando = true; return; }
+    if (typeof id === 'object') {
+      recordando = true;
+      const l = id.local;
+      if (!l || !Array.isArray(l.lineas) || !l.lineas.length) { memoria.borrar(); return; }
+      if (v && v.fase !== 'listo') return;   // la persona ya empezó otra venta
+      v = { ...vacia(), idem: l.idem || nuevaClave(), lineas: l.lineas, medio: l.medio || 'efectivo', fase: l.fase === 'pago' ? 'pago' : 'armando', progreso: l.progreso || null };
+      pintar();
+      ctx.irA('venta');
+      ctx.avisar('Retomé la venta sin cliente que estabas armando.', 'ok');
+      return;
+    }
+    let row;
+    try {
+      row = await ctx.api.venta(id);
+    } catch (e) {
+      return;    // sin conexión: se conserva lo guardado y se reintenta al próximo arranque
+    }
+    recordando = true;
+    if (!row || (row.estado !== 'confirmada' && row.estado !== 'alistando')) { memoria.borrar(); return; }   // ya se pagó, canceló o descartó
+    if (v && v.fase !== 'listo') return;   // la persona ya empezó otra venta
+    v = { ...vacia(), modo: 'vivo', idem: row.idempotency_key, ventaId: id, servidor: row, fase: row.estado === 'confirmada' ? 'pago' : 'armando',
+      cliente: row.cliente_id ? { id: row.cliente_id, nombre: 'Cliente', inicial: '' } : null };
+    try { await recargar(); } catch (e) { /* se muestra lo que ya hay */ }
+    pintar();
+    ctx.irA('venta');
+    ctx.avisar('Retomé la venta' + (row.numero ? ' #' + row.numero : '') + ', que seguía sin pagar.', 'ok');
+  }
+
   async function reanudar(ventaId) {
     await guardar(async () => {
       const row = await ctx.api.venta(ventaId);
@@ -81,28 +132,29 @@ export function crearVistaVenta(ctx) {
       if (row.estado !== 'confirmada' && row.estado !== 'alistando') throw new Error('Esa venta ya no está abierta.');
       v = { ...vacia(), modo: 'vivo', idem: row.idempotency_key, ventaId, servidor: row, fase: row.estado === 'confirmada' ? 'pago' : 'armando',
         cliente: row.cliente_id ? { id: row.cliente_id, nombre: 'Cliente', inicial: '' } : null };
-      if (!row.cliente_id) {
-        // venta sin cliente que ya existe en el servidor: se continúa por ahí
-        v.cliente = null;
-        v.progreso = { ventaId };
-        v.lineas = row.venta_lineas.map((l) => ({ producto: l.producto_clave, tamano: l.tamano, presentacion: l.presentacion, base: l.base, toppings: (l.toppings || []).map((t) => t.clave), cantidad: l.cantidad }));
-        v.modo = 'local';
-        v.servidor = null;
-        v.fase = row.estado === 'confirmada' ? 'pago' : 'armando';
-      } else {
-        await recargar();
-      }
+      // Con o sin cliente, una venta que ya existe en el servidor se continúa por ahí.
+      await recargar();
       ctx.irA('venta');
     });
   }
 
+  // Una venta local ya "está en el servidor" solo si se alcanzó a crear allá (progreso.ventaId); un intento fallido por red no cuenta.
+  const yaEnServidor = () => !!(v && v.progreso && v.progreso.ventaId);
+
+  // Lo llama la lista de espera cuando cambia: si se está armando una venta sin cliente, aparece quien acaba de entrar.
+  function alCambiarEspera(lista) {
+    if (!v || v.modo !== 'local' || v.fase === 'listo' || yaEnServidor()) return;
+    if (lista.length) ctx.avisar('Un cliente acaba de entrar: puedes asignarlo a esta venta.', 'ok');
+    pintar();
+  }
+
   // Pasa una venta local (sin cliente) a una venta con cliente cuando el cliente aparece en la lista de espera.
   async function asignarCliente(item) {
-    if (!v || v.modo !== 'local' || v.progreso) return;
+    if (!v || v.modo !== 'local' || yaEnServidor()) return;
     await guardar(async () => {
       const ventaId = await ctx.api.crearVenta({ idem: v.idem, cliente: item.cliente_id });
       const locales = v.lineas.slice();
-      v = { ...v, modo: 'vivo', ventaId, cliente: { id: item.cliente_id, nombre: item.nombre_pila, inicial: item.inicial }, lineas: [] };
+      v = { ...v, modo: 'vivo', fase: 'armando', ventaId, cliente: { id: item.cliente_id, nombre: item.nombre_pila, inicial: item.inicial }, lineas: [] };
       let fallidas = 0;
       for (const l of locales) {
         try { await ctx.api.agregarLinea(ventaId, l); } catch (e) { if (e.name === 'ErrorRed') throw e; fallidas++; }
@@ -131,7 +183,10 @@ export function crearVistaVenta(ctx) {
   }
 
   async function quitar(fila) {
-    if (v.modo === 'local') { v.lineas.splice(fila.indice, 1); pintar(); return; }
+    if (v.modo === 'local') {
+      if (v.progreso && v.progreso.ventaId) { ctx.avisar('La venta ya se envió a medias; termina de confirmarla o descártala.', 'error'); return; }
+      v.lineas.splice(fila.indice, 1); pintar(); return;
+    }
     await guardar(async () => { await ctx.api.quitarLinea(fila.id); await recargar(); });
   }
 
@@ -173,14 +228,54 @@ export function crearVistaVenta(ctx) {
   async function confirmarPedido() {
     if (v.modo === 'local') {
       if (!v.lineas.length) { ctx.avisar('Agrega al menos un producto.', 'error'); return; }
-      v.fase = 'pago';
-      pintar();
+      await guardar(async () => {
+        // Con internet, la venta se confirma en el servidor: el iPad muestra el detalle y el cliente lo revisa antes de pagar.
+        const ventaId = await confirmarSinClienteEnServidor({ api: ctx.api, venta: v, enLinea: ctx.enLinea });
+        if (ventaId) {
+          v = { ...vacia(), modo: 'vivo', idem: v.idem, ventaId, medio: v.medio };
+          await recargar();
+        }
+        // Sin internet se cobra desde el POS, como siempre: la venta nunca se bloquea.
+        if (!ventaId) ctx.avisar('No hay conexión con el servidor: el iPad no ve este pedido. Cóbralo en caja o usa "Enviar al iPad" cuando vuelva.', 'error');
+        v.fase = 'pago';
+      });
       return;
     }
     await guardar(async () => {
       await ctx.api.confirmarVenta(v.ventaId);
       await recargar();
       v.fase = 'pago';
+    });
+  }
+
+  // Pedido que se confirmó sin conexión (solo vive en el POS): lo manda al servidor para que el iPad lo muestre y el cliente pueda pagar con QR.
+  async function enviarAlIpad() {
+    if (!v || v.modo !== 'local' || v.fase !== 'pago') return;
+    await guardar(async () => {
+      const ventaId = await confirmarSinClienteEnServidor({ api: ctx.api, venta: v, enLinea: ctx.enLinea });
+      if (!ventaId) { ctx.avisar('Sigue sin conexión con el servidor. Cobra en caja o intenta de nuevo en un momento.', 'error'); return; }
+      v = { ...vacia(), modo: 'vivo', idem: v.idem, ventaId, medio: v.medio };
+      await recargar();
+      v.fase = 'pago';
+      ctx.avisar('Pedido enviado al iPad.', 'ok');
+    });
+  }
+
+  // Venta ya en el servidor que el iPad dejó de mostrar (pasó el tiempo, o se recuperó desde Caja): vuelve a la pantalla del cliente.
+  async function reenviarAlIpad() {
+    await guardar(async () => {
+      await ctx.api.mostrarEnIpad(v.ventaId);
+      ctx.avisar('Pedido enviado al iPad.', 'ok');
+    });
+  }
+
+  // El cliente revisó el pedido en el iPad y quiere agregar (o quitar) algo: la venta vuelve a armarse y el iPad la
+  // sigue mostrando como "actualizando" hasta que se confirme de nuevo.
+  async function modificarPedido() {
+    await guardar(async () => {
+      await ctx.api.reabrirVenta(v.ventaId);
+      await recargar();
+      v.fase = 'armando';
     });
   }
 
@@ -195,7 +290,16 @@ export function crearVistaVenta(ctx) {
     if (v.medio === 'efectivo' && (!recibido || recibido < total)) { ctx.avisar('El efectivo recibido no alcanza para el total.', 'error'); return; }
     await guardar(async () => {
       if (v.modo === 'vivo') {
-        const resultado = await ctx.api.pagarVenta(v.ventaId, v.medio, recibido);
+        let resultado;
+        try {
+          resultado = await ctx.api.pagarVenta(v.ventaId, v.medio, recibido);
+        } catch (e) {
+          // El cliente pudo pagar con Bold (QR del iPad) justo antes: se muestra eso en vez de un error de "venta ya pagada".
+          if (e.name === 'ErrorRed') throw e;
+          const fila = await ctx.api.venta(v.ventaId);
+          if (fila && fila.estado === 'pagada') { cerrarComoPagadaEnLinea(fila); return; }
+          throw e;
+        }
         v.resultado = { modo: 'servidor', resultado };
         ctx.refrescarEspera();
       } else {
@@ -209,6 +313,25 @@ export function crearVistaVenta(ctx) {
       }
       v.fase = 'listo';
     });
+  }
+
+  // La venta quedó pagada desde fuera del POS (el cliente pagó con Bold escaneando el QR del iPad): se cierra aquí sin cobrar de nuevo.
+  function cerrarComoPagadaEnLinea(fila) {
+    v.servidor = fila;
+    v.resultado = { modo: 'servidor', pagadaEnLinea: fila.medio_pago === 'bold_online', yaPagada: fila.medio_pago !== 'bold_online', resultado: { total_cop: fila.total_cop } };
+    v.fase = 'listo';
+    ctx.refrescarEspera();
+    if (fila.medio_pago === 'bold_online') ctx.avisar('El cliente pagó con Bold desde su celular.', 'ok');
+  }
+
+  // Lo llama el armazón cada pocos segundos: si el pedido está esperando el cobro, mira si el cliente ya pagó por el QR.
+  async function revisarPago() {
+    if (!v || v.modo !== 'vivo' || v.fase !== 'pago' || ocupado) return;
+    const id = v.ventaId;
+    let fila;
+    try { fila = await ctx.api.venta(id); } catch (e) { return; }
+    if (!v || v.ventaId !== id || v.fase !== 'pago' || ocupado) return;
+    if (fila && fila.estado === 'pagada') { cerrarComoPagadaEnLinea(fila); pintar(); }
   }
 
   async function descartar() {
@@ -262,14 +385,25 @@ export function crearVistaVenta(ctx) {
           h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'aplicar-premio', onclick: () => aplicarPremio(w) }, 'Aplicar')));
         continue;
       }
-      const elegibles = lista.filter((f) => !f.voucher && f.id && (w.modalidad === 'toppings_gratis' || (w.tamanos || []).length));
+      // Solo se ofrecen las líneas donde el premio sí aplica (las mismas reglas que valida el servidor).
+      const crudas = new Map(((v.servidor && v.servidor.venta_lineas) || []).map((l) => [l.id, l]));
+      const aplica = (f) => {
+        const l = crudas.get(f.id);
+        if (!l) return false;
+        if (w.modalidad === 'toppings_gratis') {
+          return (l.toppings || []).some((t) => t.extra && Number(t.precio_cop) > 0 && (!w.toppings || w.toppings.indexOf(t.clave) >= 0));
+        }
+        return !!l.tamano && (w.tamanos || []).indexOf(l.tamano) >= 0;
+      };
+      const elegibles = lista.filter((f) => !f.voucher && f.id && aplica(f));
       const sel = h('select', { 'data-campo': 'linea-premio', 'aria-label': 'Producto para el premio' },
         elegibles.map((f) => h('option', { value: f.id }, f.titulo + (f.detalle ? ' · ' + f.detalle : ''))));
       const texto = w.modalidad === 'toppings_gratis'
         ? nombreTipo + ': ' + w.cantidad_toppings + (w.cantidad_toppings === 1 ? ' topping gratis' : ' toppings gratis')
         : nombreTipo + ': ' + w.descuento_pct + '% en un bowl';
       bloques.push(h('div', { class: 'premio', 'data-premio': w.id },
-        h('span', null, texto), sel,
+        h('span', null, texto), elegibles.length ? sel : h('small', { 'data-campo': 'premio-sin-lineas' },
+          w.modalidad === 'toppings_gratis' ? 'Ningún producto tiene toppings con costo para regalar.' : 'Ningún producto de la venta aplica para este premio.'),
         h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'aplicar-premio', disabled: !elegibles.length, onclick: () => aplicarPremio(w, sel.value) }, 'Aplicar')));
     }
     if (!bloques.length) return null;
@@ -289,7 +423,13 @@ export function crearVistaVenta(ctx) {
     recibido.addEventListener('input', () => { v.recibido = recibido.value; actualizar(); });
     const medios = ['efectivo', 'datafono_bold', 'transferencia'].map((m) =>
       h('button', { type: 'button', class: 'chip' + (v.medio === m ? ' activo' : ''), 'data-medio': m, onclick: () => { v.medio = m; pintar(); } }, MEDIOS[m]));
-    const nodos = [h('h3', null, 'Cobro'), h('div', { class: 'chips' }, medios)];
+    const nodos = [h('h3', null, 'Cobro')];
+    if (v.modo === 'local') {
+      nodos.push(h('div', { class: 'aviso-ipad', 'data-campo': 'sin-ipad' },
+        h('p', null, 'Este pedido aún no está en el iPad, así que el cliente no lo ve ni puede pagar con QR.'),
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'enviar-ipad', disabled: ocupado, onclick: enviarAlIpad }, 'Enviar al iPad')));
+    }
+    nodos.push(h('div', { class: 'chips' }, medios));
     if (v.medio === 'efectivo') {
       nodos.push(h('label', null, 'Efectivo recibido', recibido),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'monto-exacto', onclick: () => { v.recibido = String(total); pintar(); } }, 'Monto exacto'), cambio);
@@ -311,13 +451,17 @@ export function crearVistaVenta(ctx) {
     if (r.modo === 'cola') {
       nodos.push(h('h2', null, 'Venta guardada sin conexión'),
         h('p', null, 'Ya puedes entregar el pedido. Se enviará sola cuando vuelva el internet.'));
+    } else if (r.pagadaEnLinea) {
+      nodos.push(h('h2', { 'data-campo': 'pagado' }, 'Pagado con Bold ✓'),
+        h('p', null, 'El cliente pagó desde su celular (QR del iPad). No cobres nada más.'),
+        v.cliente ? h('p', { 'data-campo': 'puntos' }, 'Los puntos ya quedaron acreditados a ' + v.cliente.nombre + '.') : null);
     } else if (r.yaPagada) {
       nodos.push(h('h2', null, 'La venta ya estaba pagada'));
     } else {
       const res = r.resultado;
       nodos.push(h('h2', { 'data-campo': 'pagado' }, 'Pagado ✓'));
       if (res.cambio_cop !== null && res.cambio_cop !== undefined) nodos.push(h('p', { class: 'mono' }, 'Cambio: ' + fmtCop(res.cambio_cop)));
-      if (v.modo === 'vivo') nodos.push(h('p', { 'data-campo': 'puntos' }, 'Puntos acreditados a ' + v.cliente.nombre + ': ' + (res.puntos_acreditados || 0)));
+      if (v.modo === 'vivo' && v.cliente) nodos.push(h('p', { 'data-campo': 'puntos' }, 'Puntos acreditados a ' + v.cliente.nombre + ': ' + (res.puntos_acreditados || 0)));
       if (res.qr_token) {
         const url = ctx.origen() + '/cuenta/#qr=' + res.qr_token;
         nodos.push(h('div', { class: 'qr-posventa', 'data-campo': 'qr-posventa' },
@@ -330,6 +474,7 @@ export function crearVistaVenta(ctx) {
   }
 
   function pintar() {
+    recordar();
     vaciar(zona);
     if (!v) {
       zona.append(h('div', { class: 'vacio' }, h('h2', null, 'Sin venta abierta'),
@@ -345,7 +490,7 @@ export function crearVistaVenta(ctx) {
       v.cliente
         ? h('strong', { 'data-campo': 'cliente' }, 'Cliente: ' + v.cliente.nombre + (v.cliente.inicial ? ' ' + v.cliente.inicial + '.' : ''))
         : h('strong', { 'data-campo': 'cliente' }, 'Sin cliente'));
-    if (v.modo === 'local' && v.fase === 'armando' && !v.progreso && ctx.espera().length) {
+    if (v.modo === 'local' && !yaEnServidor() && ctx.espera().length) {
       const sel = h('select', { 'data-campo': 'asignar', 'aria-label': 'Cliente en espera' },
         ctx.espera().map((i) => h('option', { value: i.cliente_id }, i.nombre_pila + ' ' + (i.inicial ? i.inicial + '.' : ''))));
       encabezado.append(sel, h('button', { type: 'button', class: 'btn', 'data-accion': 'asignar-cliente',
@@ -376,11 +521,14 @@ export function crearVistaVenta(ctx) {
     if (v.fase === 'armando') {
       acciones.push(
         h('button', { type: 'button', class: 'btn btn-primario grande', 'data-accion': 'confirmar-pedido', disabled: !lista.length || ocupado, onclick: confirmarPedido },
-          v.modo === 'vivo' ? 'Confirmar pedido' : 'Cobrar'),
+          'Confirmar pedido'),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'descartar', disabled: ocupado, onclick: descartar }, 'Descartar venta'));
     } else if (v.modo === 'vivo') {
-      acciones.push(h('button', { type: 'button', class: 'btn', 'data-accion': 'cancelar-venta', disabled: ocupado, onclick: cancelarConfirmada }, 'Cancelar venta'));
-    } else if (!v.progreso) {
+      acciones.push(
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'reenviar-ipad', disabled: ocupado, onclick: reenviarAlIpad }, 'Enviar al iPad'),
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'modificar-pedido', disabled: ocupado, onclick: modificarPedido }, 'Modificar pedido'),
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'cancelar-venta', disabled: ocupado, onclick: cancelarConfirmada }, 'Cancelar venta'));
+    } else if (!yaEnServidor()) {
       acciones.push(h('button', { type: 'button', class: 'btn', 'data-accion': 'volver-a-armar', onclick: () => { v.fase = 'armando'; pintar(); } }, 'Volver a editar'));
     }
 
@@ -389,7 +537,7 @@ export function crearVistaVenta(ctx) {
 
   pintar();
   return {
-    el, iniciarConCliente, iniciarSinCliente, reanudar, pintar, repintarCatalogo: () => panel.pintar(),
+    el, iniciarConCliente, iniciarSinCliente, reanudar, retomarAbierta, alCambiarEspera, pintar, revisarPago, repintarCatalogo: () => panel.pintar(),
     hayVenta: () => !!v && v.fase !== 'listo',
   };
 }

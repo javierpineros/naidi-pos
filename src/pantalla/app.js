@@ -94,23 +94,44 @@ export function crearPantalla(o) {
       h('div', { class: 'linea-precio mono' }, fmtCop(l.total_cop)));
   }
 
+  function urlPago(codigo) {
+    return String(origen()).replace(/\/+$/, '') + '/pagar/#' + codigo;
+  }
+
   function vistaVenta(datos) {
     const v = datos.venta;
     const pago = textoPago(datos);
     const textoTotal = fmtCop(v.total_cop);
-    const formas = (datos.formas_pago || []).map((f) => h('li', { class: 'forma' }, ETIQUETA_PAGO[f] || f));
+    // Las formas de pago son solo información (el iPad no tiene botones): se muestran como lista de texto, no como fichas.
+    // "Pago en línea" no va aquí: se paga escaneando el QR, que tiene su propio bloque.
+    const formas = (datos.formas_pago || []).filter((f) => f !== 'bold_online').map((f) => h('li', { class: 'forma' }, ETIQUETA_PAGO[f] || f));
+    // "actualizando": el vendedor está agregando o quitando algo a pedido del cliente; todavía no se paga.
+    const actualizando = v.estado === 'actualizando';
+    const cobro = actualizando
+      ? [h('div', { class: 'total-rotulo' }, 'Total hasta ahora'),
+         h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
+         h('div', { class: 'formas-rotulo' }, 'Estamos actualizando tu pedido…')]
+      : [h('div', { class: 'total-rotulo' }, 'Total a pagar'),
+         h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
+         // Dos columnas lado a lado (formas de pago | QR) para que el panel sea bajo y el detalle del pedido conserve su espacio.
+         h('div', { class: 'pago-cols' },
+           h('div', { class: 'pago-info' },
+             h('div', { class: 'formas-rotulo' }, 'Pagas en caja con'),
+             h('ul', { class: 'formas' }, formas),
+             pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null,
+             // La instrucción va en la columna de la izquierda (hay espacio) para que el QR pueda ser grande.
+             v.codigo_pago ? h('div', { class: 'pago-qr-ayuda' }, 'O paga tú mismo: escanea el código con la cámara de tu celular y paga en línea con Bold.') : null),
+           // Pago en línea con Bold: el celular abre la página /pagar con el código de esta venta (el monto lo decide el servidor).
+           v.codigo_pago ? h('div', { class: 'pago-qr', 'data-zona': 'pago-qr' },
+             h('strong', { class: 'pago-qr-titulo' }, 'Paga con tu celular'),
+             h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago)))) : null)];
     return marco('venta', h('div', { class: 'venta' },
       h('div', { class: 'venta-detalle' },
         h('h1', {}, 'Tu pedido'),
         (v.lineas || []).length > 6 ? h('p', { class: 'pista' }, (v.lineas || []).length + ' productos. Desliza para verlos todos.') : null,
         h('ul', { class: 'lineas' }, (v.lineas || []).map(lineaNode)),
         v.descuento_cop > 0 ? h('div', { class: 'ahorro' }, 'Descuento total −' + fmtCop(v.descuento_cop)) : null),
-      h('div', { class: 'venta-pago' },
-        h('div', { class: 'total-rotulo' }, 'Total a pagar'),
-        h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
-        h('div', { class: 'formas-rotulo' }, 'Puedes pagar con'),
-        h('ul', { class: 'formas' }, formas),
-        pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null)));
+      h('div', { class: 'venta-pago' }, cobro)));
   }
 
   function vistaPagada(datos) {

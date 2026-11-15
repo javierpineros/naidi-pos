@@ -20,6 +20,7 @@ function crearFakePanel(opciones) {
     nivel: o.nivel || 'aal2',
     factor: o.factor || null,
     activo: true,
+    verificacionVencida: !!o.verificacionVencida,
     pin: o.pin === null ? null : (o.pin || '4321'),
     alertas: o.alertas || [],
     resueltas: o.resueltas || [],
@@ -47,6 +48,12 @@ function crearFakePanel(opciones) {
     async fijarPin(nuevo, actual) {
       red(); reg('fijarPin', [nuevo, actual]);
       if (s.pin !== null && actual !== s.pin) return pinMal();
+      s.pin = nuevo;
+      return { ok: true };
+    },
+    async restablecerPin(nuevo) {
+      red(); reg('restablecerPin', [nuevo]);
+      if (s.verificacionVencida) return { ok: false, error: 'verificacion_vencida' };
       s.pin = nuevo;
       return { ok: true };
     },
@@ -222,6 +229,38 @@ describe('Panel: PIN del dueño', () => {
     await responder('2469');
     expect(texto('.avisos')).toContain('no coinciden');
     expect(api._s.pin).toBeNull();
+  });
+
+  it('"Olvidé mi PIN": pide el código de la app de verificación y crea un PIN nuevo sin pedir el actual', async () => {
+    const api = crearFakePanel({ factor: 'f-1' });
+    await entrar(api);
+    await click('[data-accion="olvide-pin"]');
+    await responder('654321');
+    await responder('1357');
+    await responder('1357');
+    expect(api._s.llamadas.filter((l) => l[0] === 'restablecerPin')[0][1]).toEqual(['1357']);
+    expect(api._s.llamadas.some((l) => l[0] === 'fijarPin')).toBe(false);
+    expect(texto('.avisos')).toContain('PIN restablecido');
+    expect(api._s.pin).toBe('1357');
+  });
+
+  it('"Olvidé mi PIN": si el servidor dice que la verificación venció, no cambia nada y lo explica', async () => {
+    const api = crearFakePanel({ factor: 'f-1', verificacionVencida: true });
+    await entrar(api);
+    await click('[data-accion="olvide-pin"]');
+    await responder('654321');
+    await responder('1357');
+    await responder('1357');
+    expect(texto('.avisos')).toContain('Vuelve a empezar');
+    expect(api._s.pin).toBe('4321');
+  });
+
+  it('"Olvidé mi PIN": cancelar el código no cambia nada', async () => {
+    const api = crearFakePanel({ factor: 'f-1' });
+    await entrar(api);
+    await click('[data-accion="olvide-pin"]');
+    await click('[data-accion="cancelar-texto"]');
+    expect(api._s.llamadas.some((l) => l[0] === 'restablecerPin')).toBe(false);
   });
 
   it('cancelar en cualquier paso no cambia nada', async () => {
@@ -504,5 +543,16 @@ describe('Panel: pagos Bold', () => {
     await irA('pagos');
     expect($('[data-campo="conciliacion"]').dataset.estado).toBe('detenida');
     expect(texto('[data-campo="conciliacion"]')).toContain('lleva rato sin correr');
+  });
+});
+
+describe('Panel: alertas de pagos Bold de compras del POS (QR del iPad)', () => {
+  it('hablan de "la compra #n" y no de un pedido web', () => {
+    const t = (detalle) => textoAlerta({ tipo: 'pago_bold', cliente: null, detalle });
+    expect(t({ motivo: 'monto_distinto', venta: 57, esperado: 21500, recibido: 22000 })).toMatch(/la compra #57.*21\.500/);
+    expect(t({ motivo: 'venta_no_cobrable', venta: 57, estado_venta: 'cancelada', monto: 21500, total_venta: 21500 })).toMatch(/compra #57.*cancelada/);
+    expect(t({ motivo: 'anulado_venta_pagada', venta: 57 })).toMatch(/compra #57.*PIN/);
+    expect(t({ motivo: 'pago_duplicado', pedido: 41, monto: 4000 })).toContain('el pedido #41');   // los pedidos web siguen igual
+    expect(t({ motivo: 'venta_no_cobrable', venta: 57, estado_venta: 'cancelada', monto: 1 })).not.toMatch(/undefined|null/);
   });
 });
