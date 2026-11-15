@@ -119,3 +119,9 @@ Rama `feat/h8b-bold` (incluye H8): PR contra `main`; 227 pruebas unitarias (`pnp
 - Confirmación del contador sobre la DIAN y revisión legal del juego.
 - Protección de la rama `main` en GitHub (PR obligatorio): configurarla.
 - Actualizar `ESPECIFICACION.md` y `PROMPT_INICIAL.md`, que todavía listan el pago en línea y la integración con Bold como fuera de alcance.
+
+## Reenviar una venta al iPad
+
+- El iPad muestra una venta confirmada solo durante `pantalla.venta_max_minutos` (60) desde que se confirmó. Una venta recuperada desde Caja pasado ese tiempo no se veía.
+- `public.mostrar_en_ipad(venta)` (personal) marca `ventas.mostrada_en = now()` en una venta de tienda confirmada; `pantalla_estado` usa el mayor entre `confirmada_en` y `mostrada_en`. No toca `confirmada_en`, que sigue siendo la fecha real.
+- POS: botón "Enviar al iPad" en la pantalla de cobro de una venta del servidor (`reenviar-ipad`) y, para un pedido confirmado sin conexión (solo local), el recuadro "Este pedido aún no está en el iPad" con `enviar-ipad`, que lo crea y confirma en el servidor.

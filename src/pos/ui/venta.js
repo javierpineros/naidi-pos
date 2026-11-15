@@ -233,6 +233,14 @@ export function crearVistaVenta(ctx) {
     });
   }
 
+  // Venta ya en el servidor que el iPad dejó de mostrar (pasó el tiempo, o se recuperó desde Caja): vuelve a la pantalla del cliente.
+  async function reenviarAlIpad() {
+    await guardar(async () => {
+      await ctx.api.mostrarEnIpad(v.ventaId);
+      ctx.avisar('Pedido enviado al iPad.', 'ok');
+    });
+  }
+
   // El cliente revisó el pedido en el iPad y quiere agregar (o quitar) algo: la venta vuelve a armarse y el iPad la
   // sigue mostrando como "actualizando" hasta que se confirme de nuevo.
   async function modificarPedido() {
@@ -478,6 +486,7 @@ export function crearVistaVenta(ctx) {
         h('button', { type: 'button', class: 'btn', 'data-accion': 'descartar', disabled: ocupado, onclick: descartar }, 'Descartar venta'));
     } else if (v.modo === 'vivo') {
       acciones.push(
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'reenviar-ipad', disabled: ocupado, onclick: reenviarAlIpad }, 'Enviar al iPad'),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'modificar-pedido', disabled: ocupado, onclick: modificarPedido }, 'Modificar pedido'),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'cancelar-venta', disabled: ocupado, onclick: cancelarConfirmada }, 'Cancelar venta'));
     } else if (!v.progreso) {

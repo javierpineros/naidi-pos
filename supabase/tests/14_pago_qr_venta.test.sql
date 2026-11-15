@@ -152,5 +152,22 @@ select is((select estado from public.ventas where id = pg_temp.id('v1')), 'pagad
 -- Los pagos de pedidos web siguen funcionando igual (tienen pedido y no venta)
 select is((select count(*) from public.pagos_bold where pedido_id is null and venta_id is null), 0::bigint, 'ningún pago queda sin destino');
 
+-- ---------------------------------------------------------------------------------------------
+-- Reenviar al iPad una venta confirmada que ya salió de la ventana de visibilidad
+-- ---------------------------------------------------------------------------------------------
+insert into ids select 'v9', public.crear_venta(gen_random_uuid(), null)::text;
+select public.agregar_linea(pg_temp.id('v9'), 'amazonas', 'pequeno', null, null, array['miel']);
+select public.confirmar_venta(pg_temp.id('v9'));
+update public.ventas set confirmada_en = now() - interval '3 hours' where id = pg_temp.id('v9');
+update public.ventas set pagada_en = now() - interval '5 hours' where estado = 'pagada' and canal = 'tienda';
+update public.ventas set confirmada_en = now() - interval '5 hours' where estado = 'confirmada' and canal = 'tienda' and id <> pg_temp.id('v9');   -- (now() es fijo dentro de la transacción)
+select isnt(pg_temp.ipad() -> 'venta' ->> 'numero', (select numero::text from public.ventas where id = pg_temp.id('v9')), 'una confirmada de hace 3 horas ya no sale en el iPad');
+select ok(not has_function_privilege('anon', 'public.mostrar_en_ipad(uuid)', 'execute'), 'anon no reenvía ventas al iPad');
+select pg_temp.como('00000000-0000-0000-0000-0000000014ca');
+select lives_ok(format($$select public.mostrar_en_ipad(%L)$$, pg_temp.id('v9')), 'el cajero la vuelve a mostrar');
+select is(pg_temp.ipad() -> 'venta' ->> 'numero', (select numero::text from public.ventas where id = pg_temp.id('v9')), 'y el iPad la muestra otra vez');
+select is((select estado from public.ventas where id = pg_temp.id('v9')), 'confirmada', 'sigue confirmada, sin cambios');
+select throws_like($$select public.mostrar_en_ipad(gen_random_uuid())$$, '%no existe%', 'una venta que no existe se rechaza');
+
 select * from finish();
 rollback;

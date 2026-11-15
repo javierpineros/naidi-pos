@@ -510,6 +510,18 @@ describe('venta visible en el iPad y modificable', () => {
       expect(api._s.ventas.size).toBe(1);                       // no se creó otra
     });
 
+    it('una venta confirmada recuperada tiene "Enviar al iPad" para volver a mostrarla al cliente', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const v = await confirmarUna(api, almacenVenta);
+      await recargarPos(api, almacenVenta);
+      await click('[data-accion="reenviar-ipad"]');
+      expect(api._s.llamadas.filter((l) => l[0] === 'mostrarEnIpad').length).toBe(1);
+      expect(texto('.avisos')).toContain('Pedido enviado al iPad');
+      expect(v.estado).toBe('confirmada');
+      expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+    });
+
     it('al pagarla se olvida, y un POS nuevo arranca limpio', async () => {
       const api = crearFakeApi();
       const almacenVenta = memoria();

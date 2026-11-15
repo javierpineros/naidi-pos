@@ -142,6 +142,8 @@ export function crearApi(client) {
     confirmarVenta: (venta) => rpc('confirmar_venta', { p_venta: venta }),
     // Vuelve a "alistando" una venta confirmada y sin pagar, para agregarle o quitarle productos.
     reabrirVenta: (venta) => rpc('reabrir_venta', { p_venta: venta }),
+    // Vuelve a mostrar en el iPad una venta confirmada que ya salió de su ventana de visibilidad.
+    mostrarEnIpad: (venta) => rpc('mostrar_en_ipad', { p_venta: venta }),
     descartarVenta: (venta) => rpc('descartar_venta', { p_venta: venta }),
     cancelarVenta: (venta, motivo) => rpc('cancelar_venta', { p_venta: venta, p_motivo: motivo }),
     pagarVenta: (venta, medio, efectivo) =>

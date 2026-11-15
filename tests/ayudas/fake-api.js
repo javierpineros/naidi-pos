@@ -201,6 +201,12 @@ export function crearFakeApi(opciones) {
       if (v.estado !== 'confirmada') throw new ErrorServidor('Solo se modifica una venta confirmada y sin pagar (estado actual: ' + v.estado + ').');
       v.estado = 'alistando'; reg('reabrirVenta', id);
     },
+    async mostrarEnIpad(id) {
+      red();
+      const v = venta(id);
+      if (v.estado !== 'confirmada') throw new ErrorServidor('Solo se muestra en el iPad una venta de tienda confirmada y sin pagar (estado actual: ' + v.estado + ').');
+      reg('mostrarEnIpad', id);
+    },
     async descartarVenta(id) { red(); venta(id).estado = 'cancelada'; reg('descartarVenta', id); },
     async cancelarVenta(id, motivo) { red(); const v = venta(id); v.estado = 'cancelada'; v.motivo = motivo; reg('cancelarVenta', { id, motivo }); },
     async pagarVenta(id, medio, efectivo) {
