@@ -385,14 +385,25 @@ export function crearVistaVenta(ctx) {
           h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'aplicar-premio', onclick: () => aplicarPremio(w) }, 'Aplicar')));
         continue;
       }
-      const elegibles = lista.filter((f) => !f.voucher && f.id && (w.modalidad === 'toppings_gratis' || (w.tamanos || []).length));
+      // Solo se ofrecen las líneas donde el premio sí aplica (las mismas reglas que valida el servidor).
+      const crudas = new Map(((v.servidor && v.servidor.venta_lineas) || []).map((l) => [l.id, l]));
+      const aplica = (f) => {
+        const l = crudas.get(f.id);
+        if (!l) return false;
+        if (w.modalidad === 'toppings_gratis') {
+          return (l.toppings || []).some((t) => t.extra && Number(t.precio_cop) > 0 && (!w.toppings || w.toppings.indexOf(t.clave) >= 0));
+        }
+        return !!l.tamano && (w.tamanos || []).indexOf(l.tamano) >= 0;
+      };
+      const elegibles = lista.filter((f) => !f.voucher && f.id && aplica(f));
       const sel = h('select', { 'data-campo': 'linea-premio', 'aria-label': 'Producto para el premio' },
         elegibles.map((f) => h('option', { value: f.id }, f.titulo + (f.detalle ? ' · ' + f.detalle : ''))));
       const texto = w.modalidad === 'toppings_gratis'
         ? nombreTipo + ': ' + w.cantidad_toppings + (w.cantidad_toppings === 1 ? ' topping gratis' : ' toppings gratis')
         : nombreTipo + ': ' + w.descuento_pct + '% en un bowl';
       bloques.push(h('div', { class: 'premio', 'data-premio': w.id },
-        h('span', null, texto), sel,
+        h('span', null, texto), elegibles.length ? sel : h('small', { 'data-campo': 'premio-sin-lineas' },
+          w.modalidad === 'toppings_gratis' ? 'Ningún producto tiene toppings con costo para regalar.' : 'Ningún producto de la venta aplica para este premio.'),
         h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'aplicar-premio', disabled: !elegibles.length, onclick: () => aplicarPremio(w, sel.value) }, 'Aplicar')));
     }
     if (!bloques.length) return null;

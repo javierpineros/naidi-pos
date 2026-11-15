@@ -228,6 +228,16 @@ describe('venta con cliente', () => {
     return m;
   }
 
+  it('el premio de toppings gratis no se ofrece sobre productos sin toppings con costo', async () => {
+    const api = crearFakeApi({ espera: [copia(MARIA)], vouchers: vouchers() });
+    await atenderAMaria(api);
+    await click('[data-producto="espresso"]');                            // un café: sin toppings
+    const premio = $('[data-premio="w-1"]');
+    expect(premio.querySelector('[data-campo="linea-premio"]')).toBeNull();
+    expect(premio.querySelector('[data-campo="premio-sin-lineas"]').textContent).toContain('Ningún producto tiene toppings con costo');
+    expect(premio.querySelector('[data-accion="aplicar-premio"]').disabled).toBe(true);
+  });
+
   it('atender abre la venta del cliente en el servidor y marca la alerta como vista', async () => {
     const api = crearFakeApi({ espera: [copia(MARIA)], vouchers: vouchers() });
     const m = await atenderAMaria(api);
