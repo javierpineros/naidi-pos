@@ -125,3 +125,9 @@ Rama `feat/h8b-bold` (incluye H8): PR contra `main`; 227 pruebas unitarias (`pnp
 - El iPad muestra una venta confirmada solo durante `pantalla.venta_max_minutos` (60) desde que se confirmó. Una venta recuperada desde Caja pasado ese tiempo no se veía.
 - `public.mostrar_en_ipad(venta)` (personal) marca `ventas.mostrada_en = now()` en una venta de tienda confirmada; `pantalla_estado` usa el mayor entre `confirmada_en` y `mostrada_en`. No toca `confirmada_en`, que sigue siendo la fecha real.
 - POS: botón "Enviar al iPad" en la pantalla de cobro de una venta del servidor (`reenviar-ipad`) y, para un pedido confirmado sin conexión (solo local), el recuadro "Este pedido aún no está en el iPad" con `enviar-ipad`, que lo crea y confirma en el servidor.
+
+## Constancia de los pagos (no repudio)
+
+- Cada pago con Bold deja: `pagos_bold` (referencia, monto, moneda, estado, `bold_payment_id`, medio, fecha de confirmación, `evento_crudo`), `bold_eventos` (un registro por evento recibido y su resultado), `venta_eventos` (cada cambio de estado con quién y cuándo; inmutable) y `auditoria` (inmutable, solo la lee el dueño).
+- Hallazgo: los pagos confirmados por el respaldo (`payment-voucher`) quedaban sin `bold_payment_id` y con `evento_crudo = {"origen":"conciliacion"}`, porque el comprobante de Bold usa `transaction_id` (no `payment_id`) y se descartaba el resto. Ahora se guarda `transaction_id` como `bold_payment_id` y la constancia (`link_id`, `reference_id`, `payment_status`, `payment_method`, `transaction_date`, montos) sin el correo ni otros datos personales de quien pagó. Los pagos anteriores quedan como estaban.
+- Los eventos del webhook se guardan completos (firmados por Bold).

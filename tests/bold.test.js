@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
-import { diagnosticarFirma, firmaIntegridad, firmaWebhook, firmaValida, iguales, normalizarEvento, eventoDeVoucher } from '../supabase/functions/_shared/bold.ts';
+import { diagnosticarFirma, firmaIntegridad, firmaWebhook, firmaValida, iguales, normalizarEvento, eventoDeVoucher, constanciaDeVoucher } from '../supabase/functions/_shared/bold.ts';
 import { manejarCheckout, manejarWebhook, manejarConciliacion, manejarVerificacion, manejarCheckoutVenta, manejarVerificacionVenta } from '../supabase/functions/_shared/manejadores.ts';
 
 const SECRETA = 'llave-secreta-de-prueba';
@@ -130,6 +130,14 @@ describe('Bold: lectura de eventos', () => {
     expect(eventoDeVoucher('NW41-a', { payment_status: 'REJECTED' }).tipo).toBe('SALE_REJECTED');
     expect(eventoDeVoucher('NW41-a', { payment_status: 'VOIDED' }).tipo).toBe('VOID_APPROVED');
     expect(eventoDeVoucher('NW41-a', { payment_status: 'PROCESSING' })).toBeNull();
+  });
+  it('del comprobante real de Bold toma transaction_id y conserva la constancia sin datos personales', () => {
+    const voucher = { link_id: 'BTN_X', total: 68800, subtotal: 68800, reference_id: 'V1-a', payment_status: 'APPROVED', transaction_id: 'T_ABC',
+      payer_email: 'alguien@correo.test', transaction_date: '2026-11-15 15:06:33-05:00', payment_method: 'PSE' };
+    expect(eventoDeVoucher('V1-a', voucher)).toMatchObject({ tipo: 'SALE_APPROVED', monto: 68800, boldPaymentId: 'T_ABC', medio: 'PSE' });
+    const c = constanciaDeVoucher(voucher);
+    expect(c).toMatchObject({ origen: 'conciliacion', transaction_id: 'T_ABC', link_id: 'BTN_X', transaction_date: '2026-11-15 15:06:33-05:00', total: 68800 });
+    expect(JSON.stringify(c)).not.toContain('alguien@correo.test');
   });
 });
 

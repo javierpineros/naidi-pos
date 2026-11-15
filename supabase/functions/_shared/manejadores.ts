@@ -1,6 +1,6 @@
 // Manejadores HTTP de las Edge Functions de Bold. Reciben sus dependencias (secretos, clientes de Supabase, fetch)
 // para que las mismas funciones corran en Deno y en las pruebas de Node. Las llaves de Bold salen solo de los secretos.
-import { diagnosticarFirma, eventoDeVoucher, firmaIntegridad, firmaValida, firmaValidaConLlaveVacia, normalizarEvento } from './bold.ts';
+import { constanciaDeVoucher, diagnosticarFirma, eventoDeVoucher, firmaIntegridad, firmaValida, firmaValidaConLlaveVacia, normalizarEvento } from './bold.ts';
 
 export interface Secretos {
   identidad: string;        // llave de identidad (pública: va en el botón)
@@ -141,11 +141,12 @@ async function conciliarOrden(d: Dependencias, orderId: string): Promise<string>
       headers: { Authorization: 'x-api-key ' + d.secretos.identidad, 'Content-Type': 'application/json' },
     });
     if (r.status !== 200) return 'sin_voucher_' + r.status;
-    const e = eventoDeVoucher(orderId, await r.json());
+    const voucher = await r.json();
+    const e = eventoDeVoucher(orderId, voucher);
     if (!e) return 'sin_cambio';
     const { data, error: err } = await d.clienteServicio.rpc('aplicar_evento_bold', {
       p_evento_id: e.eventoId, p_tipo: e.tipo, p_order_id: e.orderId, p_bold_payment_id: e.boldPaymentId,
-      p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: { origen: 'conciliacion' },
+      p_monto: e.monto, p_moneda: e.moneda, p_medio: e.medio, p_crudo: constanciaDeVoucher(voucher),
     });
     return err ? 'error' : String(data && data.resultado);
   } catch (_e) {

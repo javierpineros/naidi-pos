@@ -445,6 +445,22 @@ describe('venta sin cliente', () => {
     expect(texto('[data-campo="total"]')).toBe('$18.800');
   });
 
+  it('un cliente que entra mientras se arma una venta sin cliente aparece y se le puede asignar', async () => {
+    const api = crearFakeApi();
+    const m = await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    expect($('[data-campo="asignar"]')).toBeNull();
+    api._s.espera.push(copia(MARIA));                                     // María escanea el QR del iPad
+    await m.pos.vistas.espera.refrescar();
+    await esperar();
+    expect($('[data-campo="asignar"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('Un cliente acaba de entrar');
+    await click('[data-accion="asignar-cliente"]');
+    expect(texto('[data-campo="cliente"]')).toBe('Cliente: María P.');
+    expect(api._s.ventas.get('v-1').cliente_id).toBe('c-maria');
+  });
+
   it('el efectivo exige monto suficiente y calcula el cambio', async () => {
     const api = crearFakeApi();
     await entrarComoPersonal(api);

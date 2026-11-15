@@ -120,6 +120,13 @@ export function crearVistaVenta(ctx) {
     });
   }
 
+  // Lo llama la lista de espera cuando cambia: si se está armando una venta sin cliente, aparece quien acaba de entrar.
+  function alCambiarEspera(lista) {
+    if (!v || v.modo !== 'local' || v.fase !== 'armando' || v.progreso) return;
+    if (lista.length) ctx.avisar('Un cliente acaba de entrar: puedes asignarlo a esta venta.', 'ok');
+    pintar();
+  }
+
   // Pasa una venta local (sin cliente) a una venta con cliente cuando el cliente aparece en la lista de espera.
   async function asignarCliente(item) {
     if (!v || v.modo !== 'local' || v.progreso) return;
@@ -498,7 +505,7 @@ export function crearVistaVenta(ctx) {
 
   pintar();
   return {
-    el, iniciarConCliente, iniciarSinCliente, reanudar, retomarAbierta, pintar, revisarPago, repintarCatalogo: () => panel.pintar(),
+    el, iniciarConCliente, iniciarSinCliente, reanudar, retomarAbierta, alCambiarEspera, pintar, revisarPago, repintarCatalogo: () => panel.pintar(),
     hayVenta: () => !!v && v.fase !== 'listo',
   };
 }
