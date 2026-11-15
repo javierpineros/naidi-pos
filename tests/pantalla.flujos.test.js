@@ -173,7 +173,7 @@ describe('pantalla del iPad: qué muestra', () => {
     m = montar({ llave: LLAVE, respuestas: [datos] });
     m.pantalla.iniciar();
     await esperar();
-    expect(m.raiz.textContent).toContain('paga tú mismo con tu celular');
+    expect(m.raiz.textContent).toContain('Paga con tu celular');
     expect(m.raiz.textContent).toContain('paga en línea con Bold');
     expect(m.raiz.textContent).not.toContain('Pago en línea');         // no aparece como si fuera una ficha más
     const svg = m.raiz.querySelector('[data-zona="pago-qr"] svg');

@@ -53,24 +53,28 @@ ul { list-style: none; margin: 0; padding: 0; }
 .linea-precio { -webkit-flex: none; flex: none; font-size: 26px; font-weight: 700; }
 .ahorro { margin-top: 14px; font-size: 22px; color: #3a7d0a; font-weight: 600; }
 
-.venta-pago { -webkit-flex: none; flex: none; width: 360px; padding: 24px; background: #59358c; color: #ffffff; border-radius: 24px; text-align: center; align-self: flex-start; }
+.venta-pago { -webkit-flex: none; flex: none; width: 480px; padding: 20px 24px; background: #59358c; color: #ffffff; border-radius: 24px; text-align: center; align-self: flex-start; }
 .total-rotulo { font-size: 24px; opacity: 0.9; }
-.total { font-size: 56px; font-weight: 700; color: #95c23d; margin: 4px 0 20px; white-space: nowrap; }
-.total.largo { font-size: 44px; }
+.total { font-size: 52px; font-weight: 700; color: #95c23d; margin: 2px 0 14px; white-space: nowrap; }
+.total.largo { font-size: 42px; }
 .pista { font-size: 20px; color: #7a6a80; margin: -6px 0 12px; }
-.formas-rotulo { font-size: 20px; opacity: 0.9; margin-bottom: 8px; }
+
+/* Cobro en dos columnas (formas de pago | QR): panel bajo, para que el detalle del pedido conserve su espacio. */
+.pago-cols { display: -webkit-flex; display: flex; -webkit-align-items: flex-start; align-items: flex-start; text-align: left; }
+.pago-info { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
+.formas-rotulo { font-size: 20px; opacity: 0.9; margin-bottom: 6px; }
 /* Texto simple (con viñeta), no fichas: el iPad no tiene botones y nada de aquí se toca. */
-.forma { display: block; margin: 0 0 4px 0; font-size: 22px; font-weight: 600; color: #ffffff; }
+.forma { display: block; margin: 0 0 2px 0; font-size: 22px; font-weight: 600; color: #ffffff; }
 .forma:before { content: "\2022\00a0"; color: #95c23d; }
-.transferencia { margin-top: 10px; padding-top: 14px; border-top: 2px solid rgba(255, 255, 255, 0.35); font-size: 20px; }
+.transferencia { margin-top: 10px; padding-top: 10px; border-top: 2px solid rgba(255, 255, 255, 0.35); font-size: 18px; }
 .transferencia span { display: block; }
-.transferencia strong { display: block; font-size: 32px; margin-top: 4px; word-break: break-all; }
+.transferencia strong { display: block; font-size: 26px; margin-top: 2px; word-break: break-all; }
 
 /* QR para pagar en línea con Bold desde el celular */
-.pago-qr { margin-top: 10px; padding-top: 14px; border-top: 2px solid rgba(255, 255, 255, 0.35); font-size: 20px; }
-.pago-qr-titulo { display: block; font-size: 24px; margin-bottom: 4px; color: #95c23d; }
-.pago-qr span { display: block; }
-.pago-qr-caja { width: 220px; height: 220px; margin: 10px auto 0 auto; padding: 10px; background: #ffffff; border-radius: 16px; }
+.pago-qr { -webkit-flex: none; flex: none; width: 196px; margin-left: 20px; padding-left: 20px; border-left: 2px solid rgba(255, 255, 255, 0.35); text-align: center; font-size: 17px; line-height: 1.25; }
+.pago-qr-titulo { display: block; font-size: 21px; margin-bottom: 8px; color: #95c23d; }
+.pago-qr span { display: block; margin-top: 8px; }
+.pago-qr-caja { width: 176px; height: 176px; margin: 0 auto; padding: 8px; background: #ffffff; border-radius: 14px; }
 .pago-qr-caja svg { display: block; width: 100%; height: 100%; }
 
 .aviso-red { position: absolute; right: 24px; bottom: 20px; padding: 8px 18px; background: #59358c; color: #ffffff; border-radius: 999px; font-size: 18px; opacity: 0.9; }
@@ -81,6 +85,11 @@ ul { list-style: none; margin: 0; padding: 0; }
   .reposo-texto { -webkit-flex: none; flex: none; max-width: 560px; margin: 0 0 36px 0; }
   .qr-caja { width: 440px; height: 440px; }
   .venta { -webkit-flex-direction: column; flex-direction: column; }
-  .venta-detalle { padding-right: 0; margin-bottom: 20px; }
-  .venta-pago { width: 100%; align-self: stretch; -webkit-flex: none; flex: none; }
+  .venta-detalle { padding-right: 0; margin-bottom: 20px; -webkit-flex: 1 1 0px; flex: 1 1 0px; min-height: 240px; }
+  .venta-pago { width: 100%; align-self: stretch; -webkit-flex: none; flex: none; padding: 14px 24px 16px 24px; }
+  .venta-pago .total-rotulo { font-size: 20px; }
+  .venta-pago .total { font-size: 44px; margin: 0 0 8px 0; }
+  .venta-pago .total.largo { font-size: 38px; }
+  .cuerpo { padding-top: 20px; padding-bottom: 20px; }
+  h1 { margin-bottom: 8px; }
 }

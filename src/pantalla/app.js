@@ -113,14 +113,17 @@ export function crearPantalla(o) {
          h('div', { class: 'formas-rotulo' }, 'Estamos actualizando tu pedido…')]
       : [h('div', { class: 'total-rotulo' }, 'Total a pagar'),
          h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
-         h('div', { class: 'formas-rotulo' }, 'Pagas en caja con'),
-         h('ul', { class: 'formas' }, formas),
-         pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null,
-         // Pago en línea con Bold: el celular abre la página /pagar con el código de esta venta (el monto lo decide el servidor).
-         v.codigo_pago ? h('div', { class: 'pago-qr', 'data-zona': 'pago-qr' },
-           h('strong', { class: 'pago-qr-titulo' }, 'O paga tú mismo con tu celular'),
-           h('span', {}, 'Abre la cámara, escanea este código y paga en línea con Bold (tarjeta, PSE, Nequi)'),
-           h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago)))) : null];
+         // Dos columnas lado a lado (formas de pago | QR) para que el panel sea bajo y el detalle del pedido conserve su espacio.
+         h('div', { class: 'pago-cols' },
+           h('div', { class: 'pago-info' },
+             h('div', { class: 'formas-rotulo' }, 'Pagas en caja con'),
+             h('ul', { class: 'formas' }, formas),
+             pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null),
+           // Pago en línea con Bold: el celular abre la página /pagar con el código de esta venta (el monto lo decide el servidor).
+           v.codigo_pago ? h('div', { class: 'pago-qr', 'data-zona': 'pago-qr' },
+             h('strong', { class: 'pago-qr-titulo' }, 'Paga con tu celular'),
+             h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago))),
+             h('span', {}, 'Escanea con la cámara y paga en línea con Bold')) : null)];
     return marco('venta', h('div', { class: 'venta' },
       h('div', { class: 'venta-detalle' },
         h('h1', {}, 'Tu pedido'),
