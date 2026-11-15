@@ -66,23 +66,32 @@ export function crearPagar(o) {
     return /[?&]bold-order-id=/.test(b) && /[?&]bold-tx-status=(rejected|failed|cancelled|canceled|void)/i.test(b);
   };
 
-  function vistaAbierta(total) {
+  const etiquetaPedido = (numero) => (numero ? h('p', { class: 'pedido-numero', 'data-campo': 'numero' }, 'Pedido #' + numero) : null);
+
+  function vistaAbierta(total, numero) {
     const fallido = retornoFallido();
-    pintar('abierta|' + total + '|' + fallido, () => marco(
+    pintar('abierta|' + total + '|' + fallido + '|' + numero, () => marco(
       fallido ? h('p', { class: 'aviso-pago', role: 'alert', 'data-campo': 'pago-no-aprobado' }, 'Tu pago no fue aprobado, así que no se te cobró nada. Puedes intentarlo de nuevo o pagar con el vendedor.') : null,
       h('h1', {}, 'Paga tu compra'),
+      etiquetaPedido(numero),
       h('div', { class: 'total-rotulo' }, 'Total a pagar'),
       h('div', { class: 'total', 'data-campo': 'total' }, fmtCop(total)),
       boton,
       h('p', { class: 'pequeno' }, 'Pagas con tarjeta, PSE, Nequi o Bancolombia. Cuando termines, esta pantalla se actualiza sola.')));
   }
 
-  function vistaPagada(total) {
-    pintar('pagada', () => marco(
+  function vistaPagada(r) {
+    const total = r.total_cop;
+    pintar('pagada|' + (r.puntos_reclamables ? 'p' : ''), () => marco(
       h('div', { class: 'check', 'aria-hidden': 'true' }, '✓'),
       h('h1', {}, '¡Pago recibido! Gracias'),
+      etiquetaPedido(r.numero),
       total ? h('p', { class: 'total', 'data-campo': 'total' }, fmtCop(total)) : null,
       h('p', {}, 'Ya puedes mostrarle al vendedor que tu compra quedó pagada.'),
+      // Compra sin cuenta: se puede sumar a su cuenta ahora, mientras dura el plazo (el mismo del QR que entrega el vendedor).
+      r.puntos_reclamables ? h('div', { class: 'puntos', 'data-zona': 'reclamar-puntos' },
+        h('p', null, '¿Quieres los puntos de esta compra? Entra o crea tu cuenta y quedan sumados. Solo se puede por unos minutos.'),
+        h('a', { class: 'btn', href: '/cuenta/#venta=' + codigo, 'data-accion': 'reclamar-puntos' }, 'Reclamar mis puntos')) : null,
       // Qué hacer después de pagar: son enlaces a las otras páginas del sitio (misma dirección que esta).
       h('div', { class: 'siguientes', 'data-zona': 'siguientes' },
         h('a', { class: 'btn', href: '/tienda/', 'data-accion': 'ir-al-menu' }, 'Ver el menú'),
@@ -106,7 +115,7 @@ export function crearPagar(o) {
       reintentar('red', 'No pudimos revisar tu pago', 'Revisa tu conexión. Si ya pagaste, no pagues de nuevo: toca "Revisar de nuevo".');
       return;
     }
-    if (r.estado === 'pagada') { detenida = true; vistaPagada(r.total_cop); return; }
+    if (r.estado === 'pagada') { detenida = true; vistaPagada(r); return; }
     if (r.estado === 'invalido') { detenida = true; mensaje('invalido', 'Este código de pago no es válido', 'Pídele al vendedor que te muestre el código otra vez en la pantalla.'); return; }
     if (r.estado === 'cerrada') { detenida = true; mensaje('cerrada', 'Esta compra ya no está abierta', 'Habla con el vendedor para saber cómo seguir.'); return; }
     if (r.estado === 'actualizando') {
@@ -138,7 +147,7 @@ export function crearPagar(o) {
         return;
       }
     }
-    vistaAbierta(r.total_cop);
+    vistaAbierta(r.total_cop, r.numero);
     if (consultas < maxVerificaciones) programar(revisar, cada);
   }
 

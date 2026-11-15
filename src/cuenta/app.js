@@ -9,6 +9,7 @@ const CLAVE_PENDIENTE = 'naidi.cuenta.pendiente';
 const CLAVE_PERFIL_DESCARTADO = 'naidi.cuenta.perfil_descartado';
 const FORMATO_ENTRADA = /^[0-9a-f]{48}$/;
 const FORMATO_QR = /^[0-9a-f]{64}$/;
+const FORMATO_VENTA = /^[0-9a-f]{32}$/;
 
 const MOVIMIENTOS = {
   suma: 'Puntos por tu compra',
@@ -440,12 +441,12 @@ export function crearCuenta(cfg) {
   // Los QR llevan el token en el fragmento (#entrada= o #qr=): no viaja al servidor ni a los registros.
   function leerQrDeLaUrl() {
     const hash = String(leerHash() || '');
-    const m = /(?:^#|&)(entrada|qr)=([^&]*)/.exec(hash);
+    const m = /(?:^#|&)(entrada|qr|venta)=([^&]*)/.exec(hash);
     if (!m) return;
     limpiarHash();
     let token = m[2];
     try { token = decodeURIComponent(token); } catch (x) { /* queda como vino */ }
-    const valido = m[1] === 'entrada' ? FORMATO_ENTRADA.test(token) : FORMATO_QR.test(token);
+    const valido = m[1] === 'entrada' ? FORMATO_ENTRADA.test(token) : m[1] === 'venta' ? FORMATO_VENTA.test(token) : FORMATO_QR.test(token);
     if (!valido) {
       aviso('error', m[1] === 'entrada' ? 'Este QR de entrada no es válido. Escanea el que está en la tienda.' : 'Este QR no es válido, ya se usó o venció.');
       return;
@@ -466,7 +467,7 @@ export function crearCuenta(cfg) {
           ? '¡Bienvenido a Naidí! Ya estás en la lista y tienes un regalo de bienvenida esperándote.'
           : (r.ya_estaba ? 'Ya estabas en la lista. El vendedor te verá en un momento.' : '¡Listo! Ya estás en la lista. El vendedor te verá en un momento.'));
       } else {
-        const r = await api.reclamarQr(p.token);
+        const r = p.tipo === 'venta' ? await api.reclamarPuntosVenta(p.token) : await api.reclamarQr(p.token);
         aviso('ok', r.puntos_acreditados > 0 ? '¡Listo! Sumaste ' + r.puntos_acreditados + (r.puntos_acreditados === 1 ? ' punto' : ' puntos') + ' a tu cuenta.' : 'Listo, esa compra quedó en tu cuenta.');
       }
     } catch (x) {

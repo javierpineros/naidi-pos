@@ -33,6 +33,14 @@ ul { list-style: none; margin: 0; padding: 0; }
 .check { width: 140px; height: 140px; line-height: 140px; margin: 0 auto 18px; border-radius: 70px; background: #95c23d; color: #ffffff; font-size: 96px; font-weight: 700; }
 .total-gracias { font-size: 56px; font-weight: 700; margin: 8px 0 18px; }
 .est-pagada .cuerpo { background: #f1f8e3; }
+.numero-pedido { font-size: 30px; font-weight: 700; margin: 0; color: #59358c; }
+.puntos-qr { margin: 16px auto 0; max-width: 520px; padding: 12px; background: #ffffff; border-radius: 16px; text-align: center; }
+.puntos-qr-texto { font-size: 22px; margin-bottom: 10px; }
+/* Con el QR de puntos hay que ahorrar altura: marca de verificación y total más compactos. */
+.con-puntos .check { width: 84px; height: 84px; line-height: 84px; border-radius: 42px; font-size: 56px; margin-bottom: 10px; }
+.con-puntos h1 { font-size: 44px; margin: 0 0 6px; }
+.con-puntos .total-gracias { font-size: 40px; margin: 4px 0 6px; }
+.con-puntos p { font-size: 22px; margin: 4px 0; }
 
 /* Reposo: QR de entrada */
 .reposo { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }

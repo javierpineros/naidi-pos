@@ -64,6 +64,8 @@ export function crearApiCuenta(client, opciones) {
 
     hacerCheckin: (token) => rpc('hacer_checkin', { p_token: token }),
     reclamarQr: (token) => rpc('reclamar_qr_posventa', { p_token: token }),
+    // Puntos de una compra ya pagada sin cliente, con el código de la venta (QR del iPad o botón de /pagar).
+    reclamarPuntosVenta: (codigo) => rpc('reclamar_puntos_venta', { p_codigo: codigo }),
     canjear: (tamano) => rpc('canjear_premio', { p_tamano: tamano }),
     reportarPedido: (venta, nota) => rpc('reportar_pedido', { p_venta: venta, p_nota: nota || null }),
     actualizarPerfil: (celular, cumpleanos) => rpc('actualizar_mi_perfil', { p_celular: celular || null, p_cumpleanos: cumpleanos || null }),

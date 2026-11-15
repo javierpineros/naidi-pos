@@ -138,3 +138,10 @@ Rama `feat/h8b-bold` (incluye H8): PR contra `main`; 227 pruebas unitarias (`pnp
 - Sin conexión con el servidor sale una franja roja bajo la cabecera ("SIN CONEXIÓN CON EL SERVIDOR") además de la pastilla.
 - La venta sin cliente que solo vive en el POS (armándose o confirmada sin conexión) también se guarda en el navegador (`naidi.pos.venta_abierta`, como objeto `{ local: { idem, lineas, medio, fase, progreso } }`) y se retoma al recargar con el aviso "Retomé la venta sin cliente que estabas armando". Se borra al pagarla, enviarla a la cola o descartarla; la clave de idempotencia se conserva, así que no se duplica.
 - Causa probable de la recarga al volver el internet en las pruebas: el servidor de desarrollo de Vite recarga la página cuando su conexión de recarga en caliente se restablece. En la versión compilada (`pnpm build`) eso no ocurre.
+
+## Número de pedido y puntos de una compra pagada sin cliente
+
+- El número de la venta (`ventas.numero`) se ve en el POS ("Venta #N" en la pantalla de venta y en "Pagado ✓"), en el iPad ("Tu pedido #N", "Pedido #N" al pagar) y en /pagar.
+- Quien paga sin tener cuenta (en caja o con Bold) puede reclamar los puntos en el momento. La credencial es el código largo de la venta (`codigo_pago`, 128 bits), no un token nuevo: `public.reclamar_puntos_venta(codigo)` (cliente con sesión) solo vale si la venta sigue pagada, sin cliente, de tienda, dentro de `qr_posventa.vigencia_min` (30 min) desde el pago, y una sola vez (comparte la fila de `qr_posventa` con el QR que entrega el POS, así que no se pueden reclamar los dos). Respeta el tope diario `antifraude.max_reclamos_qr_dia`.
+- Dónde se ofrece: (1) iPad, pantalla de gracias, con un QR a `/cuenta/#venta=<codigo>`; se mantiene `pantalla.puntos_segundos` (90 s, regla nueva) para ventas sin cliente; (2) página /pagar al volver de Bold, botón "Reclamar mis puntos" mientras `puntos_reclamables`; (3) POS: en "Pagado con Bold" y en Caja, botón "QR de puntos" en ventas pagadas sin cliente de los últimos 30 min.
+- Decisión de Javier: no se amplía el plazo; si el cliente ya se fue o cerró la página, no se reclaman puntos (se hace en el momento de la venta).

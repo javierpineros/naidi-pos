@@ -169,5 +169,50 @@ select is(pg_temp.ipad() -> 'venta' ->> 'numero', (select numero::text from publ
 select is((select estado from public.ventas where id = pg_temp.id('v9')), 'confirmada', 'sigue confirmada, sin cambios');
 select throws_like($$select public.mostrar_en_ipad(gen_random_uuid())$$, '%no existe%', 'una venta que no existe se rechaza');
 
+-- ---------------------------------------------------------------------------------------------
+-- Reclamar los puntos de una venta pagada sin cliente, con el código de la venta (iPad, POS y /pagar)
+-- ---------------------------------------------------------------------------------------------
+insert into auth.users (id, aud, role, email) values
+  ('00000000-0000-0000-0000-0000000014c1', 'authenticated', 'authenticated', 'cliente14a@prueba.test'),
+  ('00000000-0000-0000-0000-0000000014c2', 'authenticated', 'authenticated', 'cliente14b@prueba.test');
+insert into public.perfiles (user_id, nombre) values
+  ('00000000-0000-0000-0000-0000000014c1', 'Cliente Catorce A'), ('00000000-0000-0000-0000-0000000014c2', 'Cliente Catorce B')
+on conflict (user_id) do update set nombre = excluded.nombre;
+update public.ventas set pagada_en = now() - interval '5 hours' where estado = 'pagada' and canal = 'tienda' and cliente_id is null;
+update public.ventas set mostrada_en = null where mostrada_en is not null;   -- (now() es fijo: evita empates con la venta reenviada antes)
+select pg_temp.como('00000000-0000-0000-0000-0000000014ca');
+insert into ids select 'r1', public.crear_venta(gen_random_uuid(), null)::text;
+select public.agregar_linea(pg_temp.id('r1'), 'amazonas', 'pequeno', null, null, array['miel']);
+select public.confirmar_venta(pg_temp.id('r1'));
+select ok(not (pg_temp.estado(pg_temp.codigo('r1')) ->> 'puntos_reclamables')::boolean, 'una venta sin pagar no se puede reclamar');
+select public.pagar_venta(pg_temp.id('r1'), 'efectivo', 100000);
+select is((pg_temp.ipad() -> 'venta' ->> 'codigo_puntos'), pg_temp.codigo('r1'), 'el iPad recibe el código para el QR de puntos');
+select ok((pg_temp.estado(pg_temp.codigo('r1')) ->> 'puntos_reclamables')::boolean, 'y la página del cliente sabe que se puede reclamar');
+select is((pg_temp.estado(pg_temp.codigo('r1')) ->> 'numero')::bigint, (select numero from public.ventas where id = pg_temp.id('r1')), 'y recibe el número del pedido');
+select ok(not has_function_privilege('anon', 'public.reclamar_puntos_venta(text)', 'execute'), 'anon no reclama puntos');
+update public.ventas set pagada_en = now() - interval '80 seconds' where id = pg_temp.id('r1');
+select is(pg_temp.ipad() -> 'venta' ->> 'estado', 'pagada', 'a los 80 s el iPad todavía muestra la venta pagada (QR de puntos)');
+update public.ventas set pagada_en = now() - interval '200 seconds' where id = pg_temp.id('r1');
+select isnt(pg_temp.ipad() -> 'venta' ->> 'codigo_puntos', pg_temp.codigo('r1'), 'pasados 90 s el iPad ya no la muestra');
+select pg_temp.como('00000000-0000-0000-0000-0000000014c1');
+select throws_ok($$select public.reclamar_puntos_venta('no-valido')$$, 'P0001', null, 'un código mal formado no sirve');
+select throws_ok($$select public.reclamar_puntos_venta('00000000000000000000000000000000')$$, 'P0001', null, 'un código que no existe tampoco');
+insert into ids select 'pts', (public.reclamar_puntos_venta(pg_temp.codigo('r1')) ->> 'puntos_acreditados');
+select ok((select v::integer from ids where k = 'pts') > 0, 'el cliente reclama y recibe puntos');
+select is((select puntos from public.puntos_libro where venta_id = pg_temp.id('r1') and tipo = 'suma'), (select v::integer from ids where k = 'pts'), 'y el libro de puntos lo registra');
+select is((select cliente_id::text from public.ventas where id = pg_temp.id('r1')), '00000000-0000-0000-0000-0000000014c1', 'la venta queda a su nombre');
+select pg_temp.como('00000000-0000-0000-0000-0000000014c2');
+select throws_ok(format($$select public.reclamar_puntos_venta(%L)$$, pg_temp.codigo('r1')), 'P0001', null, 'otro cliente no puede reclamar la misma venta');
+select ok(not (pg_temp.estado(pg_temp.codigo('r1')) ->> 'puntos_reclamables')::boolean, 'ya no es reclamable');
+-- Vencida: pasó la vigencia del QR de posventa
+select pg_temp.como('00000000-0000-0000-0000-0000000014ca');
+insert into ids select 'r2', public.crear_venta(gen_random_uuid(), null)::text;
+select public.agregar_linea(pg_temp.id('r2'), 'amazonas', 'pequeno', null, null, array['miel']);
+select public.confirmar_venta(pg_temp.id('r2'));
+select public.pagar_venta(pg_temp.id('r2'), 'transferencia');
+update public.ventas set pagada_en = now() - interval '2 hours' where id = pg_temp.id('r2');
+select pg_temp.como('00000000-0000-0000-0000-0000000014c2');
+select throws_ok(format($$select public.reclamar_puntos_venta(%L)$$, pg_temp.codigo('r2')), 'P0001', null, 'pasado el plazo ya no se puede reclamar');
+
 select * from finish();
 rollback;

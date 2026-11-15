@@ -445,6 +445,16 @@ export function crearVistaVenta(ctx) {
     return h('div', { class: 'pago' }, nodos);
   }
 
+  const numeroListo = () => (v.servidor && v.servidor.numero ? h('p', { class: 'mono', 'data-campo': 'numero-venta' }, 'Venta #' + v.servidor.numero) : null);
+  // Pagada en línea sin cliente: este QR (el mismo del iPad) le permite al cliente reclamar sus puntos con su celular.
+  function qrPuntos() {
+    const codigo = v.servidor && v.servidor.codigo_pago;
+    if (!codigo || v.cliente) return null;
+    return h('div', { class: 'qr-posventa', 'data-campo': 'qr-puntos' },
+      h('p', null, '¿El cliente quiere sus puntos? Que escanee este código con su celular. Sirve unos minutos y una sola vez.'),
+      qrSvg(ctx.origen() + '/cuenta/#venta=' + codigo, 6));
+  }
+
   function pintarListo() {
     const r = v.resultado;
     const nodos = [];
@@ -453,13 +463,14 @@ export function crearVistaVenta(ctx) {
         h('p', null, 'Ya puedes entregar el pedido. Se enviará sola cuando vuelva el internet.'));
     } else if (r.pagadaEnLinea) {
       nodos.push(h('h2', { 'data-campo': 'pagado' }, 'Pagado con Bold ✓'),
+        numeroListo(),
         h('p', null, 'El cliente pagó desde su celular (QR del iPad). No cobres nada más.'),
-        v.cliente ? h('p', { 'data-campo': 'puntos' }, 'Los puntos ya quedaron acreditados a ' + v.cliente.nombre + '.') : null);
+        v.cliente ? h('p', { 'data-campo': 'puntos' }, 'Los puntos ya quedaron acreditados a ' + v.cliente.nombre + '.') : qrPuntos());
     } else if (r.yaPagada) {
       nodos.push(h('h2', null, 'La venta ya estaba pagada'));
     } else {
       const res = r.resultado;
-      nodos.push(h('h2', { 'data-campo': 'pagado' }, 'Pagado ✓'));
+      nodos.push(h('h2', { 'data-campo': 'pagado' }, 'Pagado ✓'), numeroListo());
       if (res.cambio_cop !== null && res.cambio_cop !== undefined) nodos.push(h('p', { class: 'mono' }, 'Cambio: ' + fmtCop(res.cambio_cop)));
       if (v.modo === 'vivo' && v.cliente) nodos.push(h('p', { 'data-campo': 'puntos' }, 'Puntos acreditados a ' + v.cliente.nombre + ': ' + (res.puntos_acreditados || 0)));
       if (res.qr_token) {
@@ -487,6 +498,7 @@ export function crearVistaVenta(ctx) {
     const lista = filas();
     const total = totalActual();
     const encabezado = h('div', { class: 'cliente' },
+      v.servidor && v.servidor.numero ? h('strong', { class: 'numero-venta mono', 'data-campo': 'numero-venta' }, 'Venta #' + v.servidor.numero) : null,
       v.cliente
         ? h('strong', { 'data-campo': 'cliente' }, 'Cliente: ' + v.cliente.nombre + (v.cliente.inicial ? ' ' + v.cliente.inicial + '.' : ''))
         : h('strong', { 'data-campo': 'cliente' }, 'Sin cliente'));

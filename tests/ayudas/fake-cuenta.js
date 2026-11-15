@@ -56,6 +56,7 @@ export function crearFakeCuenta(opciones) {
       return { ...s.checkin, ya_estaba: false };
     },
     async reclamarQr(token) { red(); reg('reclamarQr', token); falla('reclamarQr'); s.saldo += 25; return { venta_id: 'v-9', puntos_acreditados: 25 }; },
+    async reclamarPuntosVenta(codigo) { red(); reg('reclamarPuntosVenta', codigo); falla('reclamarPuntosVenta'); s.saldo += 25; return { venta_id: 'v-9', puntos_acreditados: 25 }; },
     async canjear(tamano) {
       red(); reg('canjear', tamano); falla('canjear');
       const meta = s.reglas.umbrales[tamano];

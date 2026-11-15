@@ -245,6 +245,31 @@ describe('pantalla del iPad: qué muestra', () => {
     expect(m.raiz.textContent).toContain('Bienvenido a Naidí');
   });
 
+  it('muestra el número del pedido, y al pagar una venta sin cliente ofrece el QR para reclamar puntos', async () => {
+    const pagada = ventaConfirmada();
+    pagada.venta.estado = 'pagada';
+    pagada.venta.codigo_puntos = 'c'.repeat(32);
+    m = montar({ llave: LLAVE, respuestas: [ventaConfirmada(), pagada, reposo()] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('h1').textContent).toBe('Tu pedido #41');
+    await m.reloj.correr();
+    expect(m.raiz.querySelector('[data-campo="numero"]').textContent).toBe('Pedido #41');
+    const zona = m.raiz.querySelector('[data-zona="puntos-qr"]');
+    expect(zona).not.toBeNull();
+    expect(zona.querySelector('[data-qr]').getAttribute('data-qr')).toContain('/cuenta/#venta=' + 'c'.repeat(32));
+  });
+
+  it('si la venta pagada ya tiene cliente no se ofrece el QR de puntos', async () => {
+    const pagada = ventaConfirmada();
+    pagada.venta.estado = 'pagada';
+    m = montar({ llave: LLAVE, respuestas: [pagada] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('[data-zona="puntos-qr"]')).toBeNull();
+    expect(m.raiz.textContent).toContain('Pedido #41');
+  });
+
   it('no repinta si nada cambió (sin parpadeos)', async () => {
     m = montar({ llave: LLAVE, respuestas: [reposo()] });
     m.pantalla.iniciar();

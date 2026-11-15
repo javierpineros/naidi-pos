@@ -19,3 +19,7 @@ a.btn { display: inline-block; text-decoration: none; line-height: 24px; margin:
 .siguientes { margin: 18px 0 10px; }
 .aviso-pago { background: #fdecea; color: var(--error); border: 1px solid #f3c1bd; border-radius: 12px; padding: 12px 14px; margin: 0 0 16px; font-weight: 600; text-align: left; }
 [hidden] { display: none !important; }
+
+.pedido-numero { font-family: 'Space Mono', ui-monospace, Menlo, Consolas, monospace; font-weight: 700; color: var(--brand); margin: 0 0 6px; }
+.puntos { margin: 16px 0 8px; padding: 12px; border: 1px dashed var(--brand); border-radius: 12px; }
+.puntos p { margin: 0 0 10px; }

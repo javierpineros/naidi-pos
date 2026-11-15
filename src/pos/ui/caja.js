@@ -1,7 +1,8 @@
 // Caja del día: cierre separado por medio de pago, ventas del día (el dueño anula con PIN) y alertas para el dueño.
 import { h, vaciar, agregar } from '../../lib/dom.js';
 import { fmtCop, horaBogota, MEDIOS } from '../../lib/format.js';
-import { pedirTexto, pedirPin, confirmar } from './modal.js';
+import { qrSvg } from '../../lib/qr.js';
+import { modal, pedirTexto, pedirPin, confirmar } from './modal.js';
 
 const ESTADOS = { confirmada: 'Por pagar', pagada: 'Pagada', anulada: 'Anulada' };
 
@@ -59,6 +60,17 @@ export function crearVistaCaja(ctx) {
     await refrescar();
   }
 
+  // Venta pagada sin cliente: el vendedor le muestra al cliente el QR para reclamar sus puntos (el mismo del iPad).
+  async function mostrarQrPuntos(v) {
+    let fila;
+    try { fila = await ctx.api.venta(v.id); } catch (e) { ctx.avisar(e.message, 'error'); return; }
+    if (!fila || !fila.codigo_pago || fila.cliente_id || fila.estado !== 'pagada') { ctx.avisar('Esta venta ya no tiene puntos por reclamar.', 'error'); return; }
+    const m = modal({ titulo: 'Puntos de la venta #' + v.numero });
+    m.cuerpo.append(h('div', { class: 'qr-posventa', 'data-campo': 'qr-puntos' },
+      h('p', null, 'Que el cliente escanee este código con la cámara de su celular. Sirve unos minutos después del pago y una sola vez.'),
+      qrSvg(ctx.origen() + '/cuenta/#venta=' + fila.codigo_pago, 6)));
+  }
+
   async function resolver(a) {
     const nota = await pedirTexto({ titulo: 'Resolver alerta', etiqueta: '¿Qué pasó con esto?', boton: 'Resolver' });
     if (!nota) return;
@@ -93,6 +105,8 @@ export function crearVistaCaja(ctx) {
             h('td', null, v.medio_pago ? MEDIOS[v.medio_pago] : '—'), h('td', { class: 'num mono' }, fmtCop(v.total_cop)), h('td', null, ESTADOS[v.estado] || v.estado),
             h('td', null,
               v.estado === 'confirmada' ? h('button', { type: 'button', class: 'btn', 'data-accion': 'abrir-venta', onclick: () => ctx.vista('venta').reanudar(v.id) }, 'Abrir') : null,
+              v.estado === 'pagada' && !v.cliente && v.canal === 'tienda' && Date.now() - new Date(v.pagada_en).getTime() < 30 * 60 * 1000
+                ? h('button', { type: 'button', class: 'btn', 'data-accion': 'qr-puntos', onclick: () => mostrarQrPuntos(v) }, 'QR de puntos') : null,
               dueno && v.estado === 'pagada' ? h('button', { type: 'button', class: 'btn', 'data-accion': 'anular-venta', onclick: () => anular(v) }, 'Anular') : null))))),
       dueno && alertas.length
         ? h('div', { class: 'aviso', 'data-campo': 'alertas' }, h('strong', null, 'Alertas para el dueño'),

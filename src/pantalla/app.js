@@ -127,19 +127,32 @@ export function crearPantalla(o) {
              h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago)))) : null)];
     return marco('venta', h('div', { class: 'venta' },
       h('div', { class: 'venta-detalle' },
-        h('h1', {}, 'Tu pedido'),
+        h('h1', {}, v.numero ? 'Tu pedido #' + v.numero : 'Tu pedido'),
         (v.lineas || []).length > 6 ? h('p', { class: 'pista' }, (v.lineas || []).length + ' productos. Desliza para verlos todos.') : null,
         h('ul', { class: 'lineas' }, (v.lineas || []).map(lineaNode)),
         v.descuento_cop > 0 ? h('div', { class: 'ahorro' }, 'Descuento total −' + fmtCop(v.descuento_cop)) : null),
       h('div', { class: 'venta-pago' }, cobro)));
   }
 
+  function urlPuntos(codigo) {
+    return String(origen()).replace(/\/+$/, '') + '/cuenta/#venta=' + codigo;
+  }
+
   function vistaPagada(datos) {
-    return marco('pagada', h('div', { class: 'mensaje' },
+    const v = datos.venta;
+    const nodos = [
       h('div', { class: 'check', 'aria-hidden': 'true' }, '✓'),
       h('h1', {}, '¡Pagado! Gracias'),
-      h('p', { class: 'mono total-gracias' }, fmtCop(datos.venta.total_cop)),
-      h('p', {}, 'Que disfrutes tu bowl.')));
+      v.numero ? h('p', { class: 'numero-pedido mono', 'data-campo': 'numero' }, 'Pedido #' + v.numero) : null,
+      h('p', { class: 'mono total-gracias' }, fmtCop(v.total_cop)),
+      h('p', {}, 'Que disfrutes tu bowl.')];
+    // Venta sin cliente: se ofrece reclamar los puntos con el celular, en el momento (el QR se quita solo pasados unos segundos).
+    if (v.codigo_puntos) {
+      nodos.push(h('div', { class: 'puntos-qr', 'data-zona': 'puntos-qr' },
+        h('div', { class: 'puntos-qr-texto' }, '¿Quieres sumar puntos con esta compra? Escanea el código con la cámara de tu celular.'),
+        h('div', { class: 'pago-qr-caja', 'data-qr': urlPuntos(v.codigo_puntos) }, qr(urlPuntos(v.codigo_puntos)))));
+    }
+    return marco('pagada', h('div', { class: 'mensaje' + (v.codigo_puntos ? ' con-puntos' : '') }, nodos));
   }
 
   function pintar(clave, nodo) {
@@ -159,7 +172,7 @@ export function crearPantalla(o) {
     pintarSinConexion(false);
     const v = datos.venta;
     if (v && v.estado === 'pagada') {
-      pintar('pagada|' + v.numero, vistaPagada(datos));
+      pintar('pagada|' + v.numero + '|' + (v.codigo_puntos || ''), vistaPagada(datos));
     } else if (v) {
       pintar('venta|' + JSON.stringify([v, datos.formas_pago, datos.transferencia]), vistaVenta(datos));
     } else {
