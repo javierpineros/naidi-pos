@@ -455,6 +455,12 @@ verify_jwt = true
 [functions.bold-verificar]
 verify_jwt = true
 
+[functions.bold-checkout-venta]
+verify_jwt = true
+
+[functions.bold-verificar-venta]
+verify_jwt = true
+
 [functions.bold-webhook]
 verify_jwt = false
 

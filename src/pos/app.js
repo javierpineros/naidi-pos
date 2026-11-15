@@ -16,7 +16,7 @@ export function crearPos(cfg) {
   const ahora = cfg.ahora || (() => new Date());
   const cadaTanto = cfg.setInterval || ((fn, ms) => setInterval(fn, ms));
   const luego = cfg.setTimeout || ((fn, ms) => setTimeout(fn, ms));
-  const intervalos = { espera: 5000, cola: 15000, pedidos: 25000, ...(cfg.intervalos || {}) };
+  const intervalos = { espera: 5000, cola: 15000, pedidos: 25000, pago: 3000, ...(cfg.intervalos || {}) };
   const cacheCatalogo = cfg.cacheCatalogo || { leer: () => null, escribir: () => {} };
 
   const estado = { rol: null, correo: '', conectado: true, pendientes: 0, destino: null, espera: [], pestana: 'espera', temporizadores: [] };
@@ -166,6 +166,8 @@ export function crearPos(cfg) {
     try { estado.desuscribir = api.suscribirEspera(() => vistas.espera.refrescar()); } catch (e) { estado.desuscribir = null; }
     estado.temporizadores.push(cadaTanto(() => { vistas.espera.refrescar(); reportesCliente.refrescar(); }, intervalos.espera));
     estado.temporizadores.push(cadaTanto(() => sincronizarCola(), intervalos.cola));
+    // Pedido esperando el cobro: se mira seguido si el cliente ya pagó con Bold escaneando el QR del iPad.
+    estado.temporizadores.push(cadaTanto(() => vistas.venta.revisarPago(), intervalos.pago));
     if (estado.pendientes && enLinea()) sincronizarCola();
   }
 

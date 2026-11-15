@@ -18,7 +18,7 @@ describe('páginas de cada superficie', () => {
   }
 
   it('las páginas del personal y del iPad no se indexan', () => {
-    for (const nombre of ['pos', 'pantalla', 'cuenta', 'panel']) {
+    for (const nombre of ['pos', 'pantalla', 'cuenta', 'panel', 'pagar']) {
       const doc = new JSDOM(readFileSync(resolve(__dirname, '..', PAGINAS[nombre]), 'utf8')).window.document;
       expect(doc.querySelector('meta[name="robots"][content="noindex"]')).not.toBeNull();
     }

@@ -210,7 +210,16 @@ export function crearVistaVenta(ctx) {
     if (v.medio === 'efectivo' && (!recibido || recibido < total)) { ctx.avisar('El efectivo recibido no alcanza para el total.', 'error'); return; }
     await guardar(async () => {
       if (v.modo === 'vivo') {
-        const resultado = await ctx.api.pagarVenta(v.ventaId, v.medio, recibido);
+        let resultado;
+        try {
+          resultado = await ctx.api.pagarVenta(v.ventaId, v.medio, recibido);
+        } catch (e) {
+          // El cliente pudo pagar con Bold (QR del iPad) justo antes: se muestra eso en vez de un error de "venta ya pagada".
+          if (e.name === 'ErrorRed') throw e;
+          const fila = await ctx.api.venta(v.ventaId);
+          if (fila && fila.estado === 'pagada') { cerrarComoPagadaEnLinea(fila); return; }
+          throw e;
+        }
         v.resultado = { modo: 'servidor', resultado };
         ctx.refrescarEspera();
       } else {
@@ -224,6 +233,25 @@ export function crearVistaVenta(ctx) {
       }
       v.fase = 'listo';
     });
+  }
+
+  // La venta quedó pagada desde fuera del POS (el cliente pagó con Bold escaneando el QR del iPad): se cierra aquí sin cobrar de nuevo.
+  function cerrarComoPagadaEnLinea(fila) {
+    v.servidor = fila;
+    v.resultado = { modo: 'servidor', pagadaEnLinea: fila.medio_pago === 'bold_online', yaPagada: fila.medio_pago !== 'bold_online', resultado: { total_cop: fila.total_cop } };
+    v.fase = 'listo';
+    ctx.refrescarEspera();
+    if (fila.medio_pago === 'bold_online') ctx.avisar('El cliente pagó con Bold desde su celular.', 'ok');
+  }
+
+  // Lo llama el armazón cada pocos segundos: si el pedido está esperando el cobro, mira si el cliente ya pagó por el QR.
+  async function revisarPago() {
+    if (!v || v.modo !== 'vivo' || v.fase !== 'pago' || ocupado) return;
+    const id = v.ventaId;
+    let fila;
+    try { fila = await ctx.api.venta(id); } catch (e) { return; }
+    if (!v || v.ventaId !== id || v.fase !== 'pago' || ocupado) return;
+    if (fila && fila.estado === 'pagada') { cerrarComoPagadaEnLinea(fila); pintar(); }
   }
 
   async function descartar() {
@@ -326,6 +354,10 @@ export function crearVistaVenta(ctx) {
     if (r.modo === 'cola') {
       nodos.push(h('h2', null, 'Venta guardada sin conexión'),
         h('p', null, 'Ya puedes entregar el pedido. Se enviará sola cuando vuelva el internet.'));
+    } else if (r.pagadaEnLinea) {
+      nodos.push(h('h2', { 'data-campo': 'pagado' }, 'Pagado con Bold ✓'),
+        h('p', null, 'El cliente pagó desde su celular (QR del iPad). No cobres nada más.'),
+        v.cliente ? h('p', { 'data-campo': 'puntos' }, 'Los puntos ya quedaron acreditados a ' + v.cliente.nombre + '.') : null);
     } else if (r.yaPagada) {
       nodos.push(h('h2', null, 'La venta ya estaba pagada'));
     } else {
@@ -406,7 +438,7 @@ export function crearVistaVenta(ctx) {
 
   pintar();
   return {
-    el, iniciarConCliente, iniciarSinCliente, reanudar, pintar, repintarCatalogo: () => panel.pintar(),
+    el, iniciarConCliente, iniciarSinCliente, reanudar, pintar, revisarPago, repintarCatalogo: () => panel.pintar(),
     hayVenta: () => !!v && v.fase !== 'listo',
   };
 }

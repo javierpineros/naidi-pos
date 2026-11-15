@@ -9,7 +9,11 @@ const MOTIVOS = {
   pago_duplicado: 'Pago repetido',
   pedido_cerrado: 'Pagado con el pedido ya cerrado',
   anulado_pedido_cerrado: 'Anulación con el pedido ya cerrado',
+  venta_no_cobrable: 'Pagado, pero la compra ya no se podía cobrar',
+  anulado_venta_pagada: 'Anulación de una compra ya pagada',
 };
+// Un pago es de un pedido web ("#n") o de una compra del POS pagada con el QR del iPad ("Compra #n").
+const referencia = (p) => (p.pedido ? '#' + p.pedido : p.venta ? 'Compra #' + p.venta : '—');
 // Si el cron corre cada 10 min, más de 30 sin noticias es una falla que el dueño debe ver.
 const MINUTOS_SIN_NOTICIAS = 30;
 
@@ -69,7 +73,7 @@ export function crearVistaPagos(ctx) {
             h('thead', null, h('tr', null, h('th', null, 'Pedido'), h('th', null, 'Motivo'), h('th', null, 'Cliente'), h('th', { class: 'num' }, 'Monto'), h('th', null, 'Referencia'), h('th', null, ''))),
             h('tbody', null, dev.map((d) =>
               h('tr', { 'data-alerta': d.alerta_id },
-                h('td', { class: 'mono' }, d.pedido ? '#' + d.pedido : '—'),
+                h('td', { class: 'mono' }, referencia({ pedido: d.pedido, venta: d.detalle && d.detalle.venta })),
                 h('td', null, MOTIVOS[d.motivo] || 'Revisar en Bold'),
                 h('td', null, h('strong', null, d.cliente || '—'), h('br'), h('span', { class: 'pequeno' }, d.correo || '')),
                 h('td', { class: 'num mono' }, d.monto_cop ? fmtCop(d.monto_cop) : '—'),
@@ -81,13 +85,13 @@ export function crearVistaPagos(ctx) {
       pen.length
         ? h('table', { class: 'tabla', 'data-tabla': 'pendientes' },
             h('tbody', null, pen.map((p) =>
-              h('tr', { 'data-orden': p.order_id }, h('td', { class: 'mono' }, '#' + p.pedido), h('td', null, p.cliente || '—'), h('td', { class: 'num mono' }, fmtCop(p.monto_cop)), h('td', null, cuando(p.creado_en))))))
+              h('tr', { 'data-orden': p.order_id }, h('td', { class: 'mono' }, referencia(p)), h('td', null, p.cliente || '—'), h('td', { class: 'num mono' }, fmtCop(p.monto_cop)), h('td', null, cuando(p.creado_en))))))
         : h('p', { class: 'vacio', 'data-campo': 'sin-pendientes' }, 'No hay pagos pendientes.'),
       h('h3', null, 'Pagos recientes'),
       rec.length
         ? h('table', { class: 'tabla', 'data-tabla': 'recientes' },
             h('tbody', null, rec.map((p) =>
-              h('tr', { 'data-orden': p.order_id }, h('td', { class: 'mono' }, '#' + p.pedido), h('td', null, ESTADOS[p.estado] || p.estado), h('td', { class: 'num mono' }, fmtCop(p.monto_cop)), h('td', null, cuando(p.confirmado_en || p.creado_en))))))
+              h('tr', { 'data-orden': p.order_id }, h('td', { class: 'mono' }, referencia(p)), h('td', null, ESTADOS[p.estado] || p.estado), h('td', { class: 'num mono' }, fmtCop(p.monto_cop)), h('td', null, cuando(p.confirmado_en || p.creado_en))))))
         : h('p', { class: 'vacio' }, 'Todavía no hay pagos en línea.'));
   }
 

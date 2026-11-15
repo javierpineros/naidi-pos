@@ -94,6 +94,10 @@ export function crearPantalla(o) {
       h('div', { class: 'linea-precio mono' }, fmtCop(l.total_cop)));
   }
 
+  function urlPago(codigo) {
+    return String(origen()).replace(/\/+$/, '') + '/pagar/#' + codigo;
+  }
+
   function vistaVenta(datos) {
     const v = datos.venta;
     const pago = textoPago(datos);
@@ -109,7 +113,11 @@ export function crearPantalla(o) {
          h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
          h('div', { class: 'formas-rotulo' }, 'Puedes pagar con'),
          h('ul', { class: 'formas' }, formas),
-         pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null];
+         pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null,
+         // Pago en línea con Bold: el celular abre la página /pagar con el código de esta venta (el monto lo decide el servidor).
+         v.codigo_pago ? h('div', { class: 'pago-qr', 'data-zona': 'pago-qr' },
+           h('span', {}, 'O paga desde tu celular: escanea y paga con Bold'),
+           h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago)))) : null];
     return marco('venta', h('div', { class: 'venta' },
       h('div', { class: 'venta-detalle' },
         h('h1', {}, 'Tu pedido'),

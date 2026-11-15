@@ -545,3 +545,14 @@ describe('Panel: pagos Bold', () => {
     expect(texto('[data-campo="conciliacion"]')).toContain('lleva rato sin correr');
   });
 });
+
+describe('Panel: alertas de pagos Bold de compras del POS (QR del iPad)', () => {
+  it('hablan de "la compra #n" y no de un pedido web', () => {
+    const t = (detalle) => textoAlerta({ tipo: 'pago_bold', cliente: null, detalle });
+    expect(t({ motivo: 'monto_distinto', venta: 57, esperado: 21500, recibido: 22000 })).toMatch(/la compra #57.*21\.500/);
+    expect(t({ motivo: 'venta_no_cobrable', venta: 57, estado_venta: 'cancelada', monto: 21500, total_venta: 21500 })).toMatch(/compra #57.*cancelada/);
+    expect(t({ motivo: 'anulado_venta_pagada', venta: 57 })).toMatch(/compra #57.*PIN/);
+    expect(t({ motivo: 'pago_duplicado', pedido: 41, monto: 4000 })).toContain('el pedido #41');   // los pedidos web siguen igual
+    expect(t({ motivo: 'venta_no_cobrable', venta: 57, estado_venta: 'cancelada', monto: 1 })).not.toMatch(/undefined|null/);
+  });
+});

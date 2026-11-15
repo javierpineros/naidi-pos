@@ -1,0 +1,17 @@
+/* Página de pago desde el QR del iPad (celular del cliente). Identidad de referencia/index.html. */
+:root { --bg: #fff7ec; --surface: #ffffff; --text: #3b2561; --muted: #7a6a80; --border: #eee1cf; --brand: #59358c; --accent: #95c23d; --accent-oscuro: #3a7d0a; --error: #b3261e; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: Montserrat, system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.4; }
+.pagar { max-width: 460px; margin: 0 auto; padding: 24px 16px 40px; text-align: center; }
+.marca { font-family: Fraunces, Georgia, serif; color: var(--brand); font-size: 1.1rem; font-weight: 800; margin-bottom: 18px; }
+h1 { font-family: Fraunces, Georgia, serif; color: var(--brand); font-size: 1.7rem; margin: 0 0 10px; }
+p { margin: 0 0 12px; }
+.total-rotulo { color: var(--muted); font-size: 0.9rem; margin-top: 8px; }
+.total { font-family: 'Space Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 2.4rem; font-weight: 700; color: var(--brand); margin: 2px 0 18px; }
+.check { width: 72px; height: 72px; line-height: 72px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 2.4rem; margin: 6px auto 14px; }
+.boton-bold { margin: 14px 0; min-height: 56px; }
+.pequeno { font-size: 0.85rem; color: var(--muted); }
+.error { color: var(--error); min-height: 1.2em; }
+.btn { min-height: 44px; padding: 10px 18px; border: 1px solid var(--brand); border-radius: 999px; background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+[hidden] { display: none !important; }

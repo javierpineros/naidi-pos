@@ -165,6 +165,36 @@ describe('pantalla del iPad: qué muestra', () => {
     expect(m.raiz.textContent).not.toContain('Estamos actualizando');
   });
 
+  it('con el pago en línea encendido muestra un QR que lleva a /pagar con el código de la venta', async () => {
+    const CODIGO = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    const datos = ventaConfirmada();
+    datos.venta.codigo_pago = CODIGO;
+    datos.formas_pago.push('bold_online');
+    m = montar({ llave: LLAVE, respuestas: [datos] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.textContent).toContain('paga desde tu celular');
+    expect(m.raiz.textContent).toContain('Pago en línea');
+    const svg = m.raiz.querySelector('[data-zona="pago-qr"] svg');
+    expect(svg.getAttribute('data-url')).toBe('https://naidi.test/pagar/#' + CODIGO);
+    // El total que se muestra sigue siendo el de la venta; el QR no lleva ningún monto.
+    expect(svg.getAttribute('data-url')).not.toMatch(/27900|monto|total/);
+  });
+
+  it('sin código de pago (bandera apagada) no hay QR, y mientras se actualiza el pedido tampoco', async () => {
+    m = montar({ llave: LLAVE, respuestas: [ventaConfirmada()] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('[data-zona="pago-qr"]')).toBeNull();
+    const act = ventaConfirmada();
+    act.venta.estado = 'actualizando';
+    act.venta.codigo_pago = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    m = montar({ llave: LLAVE, respuestas: [act] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.querySelector('[data-zona="pago-qr"]')).toBeNull();
+  });
+
   it('un pedido largo avisa que se desliza y un total de seis cifras no se parte', async () => {
     const datos = ventaConfirmada();
     datos.venta.lineas = Array.from({ length: 10 }, (_, i) => ({ nombre: 'Bowl ' + (i + 1), tamano: 'Grande', cantidad: 1, toppings: [], precio_unitario_cop: 20000, descuento_cop: 0, total_cop: 20000 }));

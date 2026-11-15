@@ -456,6 +456,41 @@ describe('venta visible en el iPad y modificable', () => {
     expect(eventos(api, 'crearVenta').length).toBe(1);
   });
 
+  it('si el cliente paga con Bold escaneando el QR del iPad, el POS lo muestra solo y no cobra de nuevo', async () => {
+    const api = crearFakeApi();
+    const m = await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+    const v = [...api._s.ventas.values()][0];
+    await m.pos.vistas.venta.revisarPago();
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();         // todavía sin pagar: sigue esperando el cobro
+    v.estado = 'pagada'; v.medio_pago = 'bold_online';                    // el servidor recibió la confirmación de Bold
+    await m.pos.vistas.venta.revisarPago();
+    await esperar();
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado con Bold ✓');
+    expect(texto('.listo')).toContain('No cobres nada más');
+    expect($('[data-accion="registrar-pago"]')).toBeNull();
+    expect(eventos(api, 'pagarVenta').length).toBe(0);
+    expect($('[data-accion="nueva-venta"]')).not.toBeNull();
+  });
+
+  it('si el cliente paga con Bold justo cuando el vendedor registra el cobro, no sale un error: se muestra que ya está pagada', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    const v = [...api._s.ventas.values()][0];
+    await click('[data-medio="datafono_bold"]');
+    v.estado = 'pagada'; v.medio_pago = 'bold_online';
+    await click('[data-accion="registrar-pago"]');
+    await esperar();
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado con Bold ✓');
+    expect(texto('.avisos')).not.toContain('Solo se cobra');
+  });
+
   it('el cliente pide agregar algo: "Modificar pedido" reabre la venta, se agrega y se confirma de nuevo', async () => {
     const api = crearFakeApi();
     await entrarComoPersonal(api);
