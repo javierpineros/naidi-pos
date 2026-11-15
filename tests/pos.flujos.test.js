@@ -464,6 +464,28 @@ describe('venta sin cliente', () => {
     expect(texto('[data-campo="banda-sin-red"]')).toContain('SIN CONEXIÓN');
   });
 
+  it('un cliente que entra después de confirmar la venta sin conexión también se le puede asignar, y vuelve a armado', async () => {
+    const api = crearFakeApi();
+    const red = { on: true };
+    const m = await entrarComoPersonal(api, { enLinea: () => red.on });
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-atajo="amazonas:pequeno"]');
+    red.on = false; api._s.red = false;
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+    red.on = true; api._s.red = true;                                     // vuelve el internet y el cliente escanea el QR
+    api._s.espera.push(copia(MARIA));
+    await m.pos.vistas.espera.refrescar();
+    await esperar();
+    expect($('[data-campo="asignar"]')).not.toBeNull();
+    await click('[data-accion="asignar-cliente"]');
+    expect(texto('[data-campo="cliente"]')).toBe('Cliente: María P.');
+    expect(api._s.ventas.get('v-1').cliente_id).toBe('c-maria');
+    expect(api._s.ventas.get('v-1').venta_lineas.length).toBe(2);
+    expect($('[data-accion="confirmar-pedido"]')).not.toBeNull();          // quedó en armado: se confirma y se cobra con el cliente
+  });
+
   it('un cliente que entra mientras se arma una venta sin cliente aparece y se le puede asignar', async () => {
     const api = crearFakeApi();
     const m = await entrarComoPersonal(api);

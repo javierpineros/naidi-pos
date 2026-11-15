@@ -138,20 +138,23 @@ export function crearVistaVenta(ctx) {
     });
   }
 
+  // Una venta local ya "está en el servidor" solo si se alcanzó a crear allá (progreso.ventaId); un intento fallido por red no cuenta.
+  const yaEnServidor = () => !!(v && v.progreso && v.progreso.ventaId);
+
   // Lo llama la lista de espera cuando cambia: si se está armando una venta sin cliente, aparece quien acaba de entrar.
   function alCambiarEspera(lista) {
-    if (!v || v.modo !== 'local' || v.fase !== 'armando' || v.progreso) return;
+    if (!v || v.modo !== 'local' || v.fase === 'listo' || yaEnServidor()) return;
     if (lista.length) ctx.avisar('Un cliente acaba de entrar: puedes asignarlo a esta venta.', 'ok');
     pintar();
   }
 
   // Pasa una venta local (sin cliente) a una venta con cliente cuando el cliente aparece en la lista de espera.
   async function asignarCliente(item) {
-    if (!v || v.modo !== 'local' || v.progreso) return;
+    if (!v || v.modo !== 'local' || yaEnServidor()) return;
     await guardar(async () => {
       const ventaId = await ctx.api.crearVenta({ idem: v.idem, cliente: item.cliente_id });
       const locales = v.lineas.slice();
-      v = { ...v, modo: 'vivo', ventaId, cliente: { id: item.cliente_id, nombre: item.nombre_pila, inicial: item.inicial }, lineas: [] };
+      v = { ...v, modo: 'vivo', fase: 'armando', ventaId, cliente: { id: item.cliente_id, nombre: item.nombre_pila, inicial: item.inicial }, lineas: [] };
       let fallidas = 0;
       for (const l of locales) {
         try { await ctx.api.agregarLinea(ventaId, l); } catch (e) { if (e.name === 'ErrorRed') throw e; fallidas++; }
@@ -476,7 +479,7 @@ export function crearVistaVenta(ctx) {
       v.cliente
         ? h('strong', { 'data-campo': 'cliente' }, 'Cliente: ' + v.cliente.nombre + (v.cliente.inicial ? ' ' + v.cliente.inicial + '.' : ''))
         : h('strong', { 'data-campo': 'cliente' }, 'Sin cliente'));
-    if (v.modo === 'local' && v.fase === 'armando' && !v.progreso && ctx.espera().length) {
+    if (v.modo === 'local' && !yaEnServidor() && ctx.espera().length) {
       const sel = h('select', { 'data-campo': 'asignar', 'aria-label': 'Cliente en espera' },
         ctx.espera().map((i) => h('option', { value: i.cliente_id }, i.nombre_pila + ' ' + (i.inicial ? i.inicial + '.' : ''))));
       encabezado.append(sel, h('button', { type: 'button', class: 'btn', 'data-accion': 'asignar-cliente',
@@ -514,7 +517,7 @@ export function crearVistaVenta(ctx) {
         h('button', { type: 'button', class: 'btn', 'data-accion': 'reenviar-ipad', disabled: ocupado, onclick: reenviarAlIpad }, 'Enviar al iPad'),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'modificar-pedido', disabled: ocupado, onclick: modificarPedido }, 'Modificar pedido'),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'cancelar-venta', disabled: ocupado, onclick: cancelarConfirmada }, 'Cancelar venta'));
-    } else if (!v.progreso) {
+    } else if (!yaEnServidor()) {
       acciones.push(h('button', { type: 'button', class: 'btn', 'data-accion': 'volver-a-armar', onclick: () => { v.fase = 'armando'; pintar(); } }, 'Volver a editar'));
     }
 
