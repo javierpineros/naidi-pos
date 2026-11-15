@@ -60,8 +60,16 @@ export function crearPagar(o) {
     return contenedor;
   }
 
+  // Bold devolvió a la persona con el pago rechazado o cancelado: se le dice, en vez de mostrar la misma pantalla de antes de pagar.
+  const retornoFallido = () => {
+    const b = String(leerBusqueda() || '');
+    return /[?&]bold-order-id=/.test(b) && /[?&]bold-tx-status=(rejected|failed|cancelled|canceled|void)/i.test(b);
+  };
+
   function vistaAbierta(total) {
-    pintar('abierta|' + total, () => marco(
+    const fallido = retornoFallido();
+    pintar('abierta|' + total + '|' + fallido, () => marco(
+      fallido ? h('p', { class: 'aviso-pago', role: 'alert', 'data-campo': 'pago-no-aprobado' }, 'Tu pago no fue aprobado, así que no se te cobró nada. Puedes intentarlo de nuevo o pagar con el vendedor.') : null,
       h('h1', {}, 'Paga tu compra'),
       h('div', { class: 'total-rotulo' }, 'Total a pagar'),
       h('div', { class: 'total', 'data-campo': 'total' }, fmtCop(total)),
@@ -74,7 +82,12 @@ export function crearPagar(o) {
       h('div', { class: 'check', 'aria-hidden': 'true' }, '✓'),
       h('h1', {}, '¡Pago recibido! Gracias'),
       total ? h('p', { class: 'total', 'data-campo': 'total' }, fmtCop(total)) : null,
-      h('p', {}, 'Ya puedes mostrarle al vendedor que tu compra quedó pagada.')));
+      h('p', {}, 'Ya puedes mostrarle al vendedor que tu compra quedó pagada.'),
+      // Qué hacer después de pagar: son enlaces a las otras páginas del sitio (misma dirección que esta).
+      h('div', { class: 'siguientes', 'data-zona': 'siguientes' },
+        h('a', { class: 'btn', href: '/tienda/', 'data-accion': 'ir-al-menu' }, 'Ver el menú'),
+        h('a', { class: 'btn btn-claro', href: '/cuenta/', 'data-accion': 'ir-a-mi-cuenta' }, 'Mi cuenta y mis puntos')),
+      h('p', { class: 'pequeno' }, 'Con tu cuenta ves tus puntos y haces tus próximos pedidos para recoger sin filas.')));
   }
 
   function reintentar(clave, titulo, texto) {

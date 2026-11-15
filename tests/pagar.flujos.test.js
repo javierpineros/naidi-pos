@@ -143,3 +143,32 @@ describe('/pagar: pago con QR de una venta del POS', () => {
     expect(texto()).not.toContain('Estamos confirmando');
   });
 });
+
+describe('/pagar: después del pago', () => {
+  it('al quedar pagada ofrece ver el menú y la cuenta con los puntos', async () => {
+    const m = montar({ estados: [{ estado: 'pagada', total_cop: 17800 }] });
+    m.pagar.iniciar();
+    await esperar();
+    expect(texto()).toContain('Pago recibido');
+    expect(document.querySelector('[data-accion="ir-al-menu"]').getAttribute('href')).toBe('/tienda/');
+    expect(document.querySelector('[data-accion="ir-a-mi-cuenta"]').getAttribute('href')).toBe('/cuenta/');
+    expect(texto()).toContain('Mi cuenta y mis puntos');
+  });
+
+  it('si Bold devuelve el pago rechazado lo dice claro, ofrece reintentar y no cobra', async () => {
+    const m = montar({ hash: '', busqueda: '?c=' + CODIGO + '&bold-order-id=V57-abc&bold-tx-status=rejected' });
+    m.pagar.iniciar();
+    await esperar();
+    expect(document.querySelector('[data-campo="pago-no-aprobado"]').textContent).toContain('no fue aprobado');
+    expect(texto()).toContain('no se te cobró nada');
+    expect(document.querySelector('[data-campo="boton-bold"]')).not.toBeNull();
+  });
+
+  it('un pago que va normal (sin retorno de Bold) no muestra el aviso de rechazo', async () => {
+    const m = montar();
+    m.pagar.iniciar();
+    await esperar();
+    expect(document.querySelector('[data-campo="pago-no-aprobado"]')).toBeNull();
+    expect(document.querySelector('[data-accion="ir-al-menu"]')).toBeNull();   // todavía no pagó
+  });
+});

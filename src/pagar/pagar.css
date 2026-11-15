@@ -14,4 +14,8 @@ p { margin: 0 0 12px; }
 .pequeno { font-size: 0.85rem; color: var(--muted); }
 .error { color: var(--error); min-height: 1.2em; }
 .btn { min-height: 44px; padding: 10px 18px; border: 1px solid var(--brand); border-radius: 999px; background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+a.btn { display: inline-block; text-decoration: none; line-height: 24px; margin: 4px 6px; }
+.btn-claro { background: var(--surface); color: var(--brand); }
+.siguientes { margin: 18px 0 10px; }
+.aviso-pago { background: #fdecea; color: var(--error); border: 1px solid #f3c1bd; border-radius: 12px; padding: 12px 14px; margin: 0 0 16px; font-weight: 600; text-align: left; }
 [hidden] { display: none !important; }
