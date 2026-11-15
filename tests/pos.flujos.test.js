@@ -445,6 +445,25 @@ describe('venta sin cliente', () => {
     expect(texto('[data-campo="total"]')).toBe('$18.800');
   });
 
+  it('los avisos de error no desaparecen solos: se cierran con la X, y sin conexión hay una franja roja', async () => {
+    const api = crearFakeApi();
+    const red = { on: true };
+    const m = await entrarComoPersonal(api, { enLinea: () => red.on });
+    expect($('[data-campo="banda-sin-red"]').hidden).toBe(true);
+    m.pos.ctx.avisar('Algo salió mal.', 'error');
+    m.pos.ctx.avisar('Algo salió mal.', 'error');                         // el mismo aviso no se apila
+    expect($$('.aviso-flotante.error').length).toBe(1);
+    await esperar(5);
+    expect($$('.aviso-flotante.error').length).toBe(1);
+    await click('[data-accion="cerrar-aviso"]');
+    expect($$('.aviso-flotante.error').length).toBe(0);
+
+    red.on = false; api._s.red = false;
+    m.pos.ctx.marcarConexion(false);
+    expect($('[data-campo="banda-sin-red"]').hidden).toBe(false);
+    expect(texto('[data-campo="banda-sin-red"]')).toContain('SIN CONEXIÓN');
+  });
+
   it('un cliente que entra mientras se arma una venta sin cliente aparece y se le puede asignar', async () => {
     const api = crearFakeApi();
     const m = await entrarComoPersonal(api);
@@ -536,6 +555,35 @@ describe('venta visible en el iPad y modificable', () => {
       expect(texto('.avisos')).toContain('Pedido enviado al iPad');
       expect(v.estado).toBe('confirmada');
       expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+    });
+
+    it('una venta sin cliente que solo vive en el POS (confirmada sin conexión) sobrevive a recargar y se puede enviar al iPad', async () => {
+      const api = crearFakeApi();
+      const almacenVenta = memoria();
+      const red = { on: true };
+      await entrarComoPersonal(api, { almacenVenta, enLinea: () => red.on });
+      await click('[data-accion="venta-sin-cliente-espera"]');
+      await click('[data-producto="espresso"]');
+      await click('[data-atajo="amazonas:pequeno"]');
+      red.on = false; api._s.red = false;
+      await click('[data-accion="confirmar-pedido"]');
+      expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+      expect(almacenVenta.id && almacenVenta.id.local.lineas.length).toBe(2);
+
+      red.on = true; api._s.red = true;                                   // vuelve el internet y el navegador se recarga
+      await montarPos(api, { almacenVenta, enLinea: () => red.on });
+      await esperar(12);
+      expect($('[data-campo="sin-ipad"]')).not.toBeNull();                // sigue ahí, en la pantalla de cobro
+      expect(texto('[data-campo="total"]')).toBe('$18.800');
+      expect(texto('.avisos')).toContain('Retomé la venta sin cliente');
+
+      await click('[data-accion="enviar-ipad"]');
+      expect($('[data-campo="sin-ipad"]')).toBeNull();
+      expect([...api._s.ventas.values()][0]).toMatchObject({ estado: 'confirmada' });
+      await click('[data-medio="datafono_bold"]');
+      await click('[data-accion="registrar-pago"]');
+      expect(almacenVenta.id).toBeNull();
+      expect(api._s.ventas.size).toBe(1);
     });
 
     it('al pagarla se olvida, y un POS nuevo arranca limpio', async () => {

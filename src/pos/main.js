@@ -21,8 +21,15 @@ const cacheCatalogo = {
 // La venta abierta (confirmada sin pagar o en edición) se recuerda para retomarla si el POS se recarga.
 const CLAVE_VENTA = 'naidi.pos.venta_abierta';
 const almacenVenta = {
-  leer() { try { return window.localStorage.getItem(CLAVE_VENTA); } catch (e) { return null; } },
-  escribir(id) { try { window.localStorage.setItem(CLAVE_VENTA, id); } catch (e) { /* ok */ } },
+  // Guarda el id de una venta del servidor (texto) o los datos de una venta local (objeto); lo viejo, texto suelto, sigue valiendo.
+  leer() {
+    try {
+      const x = window.localStorage.getItem(CLAVE_VENTA);
+      if (!x) return null;
+      try { const o = JSON.parse(x); return o && typeof o === 'object' ? o : x; } catch (e) { return x; }
+    } catch (e) { return null; }
+  },
+  escribir(dato) { try { window.localStorage.setItem(CLAVE_VENTA, typeof dato === 'string' ? dato : JSON.stringify(dato)); } catch (e) { /* ok */ } },
   borrar() { try { window.localStorage.removeItem(CLAVE_VENTA); } catch (e) { /* ok */ } },
 };
 

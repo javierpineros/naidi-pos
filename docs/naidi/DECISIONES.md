@@ -131,3 +131,10 @@ Rama `feat/h8b-bold` (incluye H8): PR contra `main`; 227 pruebas unitarias (`pnp
 - Cada pago con Bold deja: `pagos_bold` (referencia, monto, moneda, estado, `bold_payment_id`, medio, fecha de confirmación, `evento_crudo`), `bold_eventos` (un registro por evento recibido y su resultado), `venta_eventos` (cada cambio de estado con quién y cuándo; inmutable) y `auditoria` (inmutable, solo la lee el dueño).
 - Hallazgo: los pagos confirmados por el respaldo (`payment-voucher`) quedaban sin `bold_payment_id` y con `evento_crudo = {"origen":"conciliacion"}`, porque el comprobante de Bold usa `transaction_id` (no `payment_id`) y se descartaba el resto. Ahora se guarda `transaction_id` como `bold_payment_id` y la constancia (`link_id`, `reference_id`, `payment_status`, `payment_method`, `transaction_date`, montos) sin el correo ni otros datos personales de quien pagó. Los pagos anteriores quedan como estaban.
 - Los eventos del webhook se guardan completos (firmados por Bold).
+
+## Avisos de error y venta local que sobrevive a recargar
+
+- Los avisos rojos del POS ya no desaparecen solos: se cierran con la X (el mismo mensaje no se apila). Los verdes siguen durando 4 s.
+- Sin conexión con el servidor sale una franja roja bajo la cabecera ("SIN CONEXIÓN CON EL SERVIDOR") además de la pastilla.
+- La venta sin cliente que solo vive en el POS (armándose o confirmada sin conexión) también se guarda en el navegador (`naidi.pos.venta_abierta`, como objeto `{ local: { idem, lineas, medio, fase, progreso } }`) y se retoma al recargar con el aviso "Retomé la venta sin cliente que estabas armando". Se borra al pagarla, enviarla a la cola o descartarla; la clave de idempotencia se conserva, así que no se duplica.
+- Causa probable de la recarga al volver el internet en las pruebas: el servidor de desarrollo de Vite recarga la página cuando su conexión de recarga en caliente se restablece. En la versión compilada (`pnpm build`) eso no ocurre.

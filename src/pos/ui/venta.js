@@ -83,13 +83,31 @@ export function crearVistaVenta(ctx) {
   let recordando = false;   // hasta intentar retomar la venta guardada no se borra nada (la vista arranca vacía)
   function recordar() {
     const abierta = v && v.modo === 'vivo' && v.ventaId && v.fase !== 'listo';
-    if (abierta) { recordando = true; memoria.escribir(v.ventaId); } else if (recordando) memoria.borrar();
+    // Una venta sin cliente que aún solo vive en el POS (armándose o confirmada sin conexión) también se recuerda completa:
+    // si el navegador se recarga, la venta no se pierde.
+    const local = v && v.modo === 'local' && v.fase !== 'listo' && v.lineas.length;
+    if (abierta) { recordando = true; memoria.escribir(v.ventaId); }
+    else if (local) {
+      recordando = true;
+      memoria.escribir({ local: { idem: v.idem, lineas: v.lineas, medio: v.medio, fase: v.fase, progreso: v.progreso } });
+    } else if (recordando) memoria.borrar();
   }
 
   // Al abrir el turno: si había una venta abierta, se vuelve a mostrar en la fase en que estaba (cobro o armado).
   async function retomarAbierta() {
     const id = memoria.leer();
     if (!id) { recordando = true; return; }
+    if (typeof id === 'object') {
+      recordando = true;
+      const l = id.local;
+      if (!l || !Array.isArray(l.lineas) || !l.lineas.length) { memoria.borrar(); return; }
+      if (v && v.fase !== 'listo') return;   // la persona ya empezó otra venta
+      v = { ...vacia(), idem: l.idem || nuevaClave(), lineas: l.lineas, medio: l.medio || 'efectivo', fase: l.fase === 'pago' ? 'pago' : 'armando', progreso: l.progreso || null };
+      pintar();
+      ctx.irA('venta');
+      ctx.avisar('Retomé la venta sin cliente que estabas armando.', 'ok');
+      return;
+    }
     let row;
     try {
       row = await ctx.api.venta(id);
