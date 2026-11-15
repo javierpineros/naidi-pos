@@ -73,7 +73,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* QR para pagar en línea con Bold desde el celular */
 .pago-qr { -webkit-flex: none; flex: none; width: 196px; margin-left: 20px; padding-left: 20px; border-left: 2px solid rgba(255, 255, 255, 0.35); text-align: center; font-size: 17px; line-height: 1.25; }
 .pago-qr-titulo { display: block; font-size: 21px; margin-bottom: 8px; color: #95c23d; }
-.pago-qr span { display: block; margin-top: 8px; }
+.pago-qr-ayuda { margin-top: 8px; font-size: 16px; line-height: 1.25; opacity: 0.95; }
 .pago-qr-caja { width: 176px; height: 176px; margin: 0 auto; padding: 8px; background: #ffffff; border-radius: 14px; }
 .pago-qr-caja svg { display: block; width: 100%; height: 100%; }
 
@@ -90,6 +90,11 @@ ul { list-style: none; margin: 0; padding: 0; }
   .venta-pago .total-rotulo { font-size: 20px; }
   .venta-pago .total { font-size: 44px; margin: 0 0 8px 0; }
   .venta-pago .total.largo { font-size: 38px; }
+  /* En vertical el panel es ancho: el QR crece (más fácil de escanear) y la instrucción llena la columna de la izquierda. */
+  .pago-qr { width: 300px; margin-left: 24px; padding-left: 24px; }
+  .pago-qr-titulo { font-size: 24px; }
+  .pago-qr-caja { width: 252px; height: 252px; padding: 10px; }
+  .pago-qr-ayuda { font-size: 21px; }
   .cuerpo { padding-top: 20px; padding-bottom: 20px; }
   h1 { margin-bottom: 8px; }
 }

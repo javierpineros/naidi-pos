@@ -118,12 +118,13 @@ export function crearPantalla(o) {
            h('div', { class: 'pago-info' },
              h('div', { class: 'formas-rotulo' }, 'Pagas en caja con'),
              h('ul', { class: 'formas' }, formas),
-             pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null),
+             pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null,
+             // La instrucción va en la columna de la izquierda (hay espacio) para que el QR pueda ser grande.
+             v.codigo_pago ? h('div', { class: 'pago-qr-ayuda' }, 'O paga tú mismo: escanea el código con la cámara de tu celular y paga en línea con Bold.') : null),
            // Pago en línea con Bold: el celular abre la página /pagar con el código de esta venta (el monto lo decide el servidor).
            v.codigo_pago ? h('div', { class: 'pago-qr', 'data-zona': 'pago-qr' },
              h('strong', { class: 'pago-qr-titulo' }, 'Paga con tu celular'),
-             h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago))),
-             h('span', {}, 'Escanea con la cámara y paga en línea con Bold')) : null)];
+             h('div', { class: 'pago-qr-caja', 'data-qr': urlPago(v.codigo_pago) }, qr(urlPago(v.codigo_pago)))) : null)];
     return marco('venta', h('div', { class: 'venta' },
       h('div', { class: 'venta-detalle' },
         h('h1', {}, 'Tu pedido'),
