@@ -7,8 +7,13 @@ import { crearVistaAlertas } from './ui/alertas.js';
 import { crearVistaCuentas } from './ui/cuentas.js';
 import { crearVistaPantallas } from './ui/pantallas.js';
 import { crearVistaPagos } from './ui/pagos.js';
+import { crearVistaReportes } from '../pos/ui/reportes.js';
+import { crearVistaReglas } from './ui/reglas.js';
+import { crearVistaBanderas } from './ui/banderas.js';
+import { crearVistaEntrada } from './ui/entrada.js';
+import { crearVistaAuditoria } from './ui/auditoria.js';
 
-const ROTULOS = { alertas: 'Alertas', cuentas: 'Cuentas', pantallas: 'Pantallas', pagos: 'Pagos Bold' };
+const ROTULOS = { alertas: 'Alertas', cuentas: 'Cuentas', pantallas: 'Pantallas', pagos: 'Pagos Bold', reportes: 'Reportes', reglas: 'Reglas', banderas: 'Banderas', entrada: 'QR de entrada', auditoria: 'Auditoría' };
 
 export function crearPanel(cfg) {
   const { raiz, api } = cfg;
@@ -135,6 +140,11 @@ export function crearPanel(cfg) {
     vistas.cuentas = crearVistaCuentas(ctx);
     vistas.pantallas = crearVistaPantallas(ctx);
     vistas.pagos = crearVistaPagos(ctx);
+    vistas.reportes = crearVistaReportes(ctx);
+    vistas.reglas = crearVistaReglas(ctx);
+    vistas.banderas = crearVistaBanderas(ctx);
+    vistas.entrada = crearVistaEntrada(ctx);
+    vistas.auditoria = crearVistaAuditoria(ctx);
     vaciar(nav);
     for (const nombre of Object.keys(vistas)) {
       const boton = h('button', { type: 'button', class: 'pestana', 'data-pestana': nombre, onclick: () => ctx.irA(nombre) }, ROTULOS[nombre]);

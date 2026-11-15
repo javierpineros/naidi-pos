@@ -26,6 +26,20 @@ function crearFakePanel(opciones) {
     resueltas: o.resueltas || [],
     cuentas: o.cuentas || [],
     pantallas: o.pantallas || [],
+    reglas: o.reglas || [
+      { clave: 'puntos.cop_por_punto', version: 2, valor: 1000, descripcion: 'Pesos por punto.', publica: true, vigente_desde: '2026-11-09T10:00:00Z', vigente_hasta: null },
+      { clave: 'puntos.cop_por_punto', version: 1, valor: 1500, descripcion: 'Pesos por punto.', publica: true, vigente_desde: '2026-11-01T10:00:00Z', vigente_hasta: '2026-11-09T10:00:00Z' },
+      { clave: 'pin.max_intentos', version: 1, valor: 5, descripcion: 'Intentos de PIN.', publica: false, vigente_desde: '2026-11-01T10:00:00Z', vigente_hasta: null },
+    ],
+    banderas: o.banderas || [
+      { clave: 'pago_en_linea_bold', activa: true, desde: null, hasta: null, descripcion: 'Pago en línea con Bold.' },
+      { clave: 'referidos', activa: false, desde: null, hasta: null, descripcion: 'Fase 2: referidos.' },
+    ],
+    punto: o.punto || { token: 'a'.repeat(48), rotado_en: null },
+    auditoria: o.auditoria || [
+      { id: 2, en: '2026-11-10T14:00:00Z', accion: 'cambiar_regla', entidad: 'regla', entidad_id: 'puntos.cop_por_punto', actor: 'Javier', detalle: { version: 2, anterior: 1500, nuevo: 1000 } },
+      { id: 1, en: '2026-11-10T13:00:00Z', accion: 'anular_venta', entidad: 'venta', entidad_id: 'v-9', actor: 'Javier', detalle: { motivo: 'error de digitación' } },
+    ],
     pagos: o.pagos || { activo: true, pendientes: [], devoluciones: [], recientes: [], ultima_conciliacion: null },
     llamadas: [],
     red: true,
@@ -90,6 +104,32 @@ function crearFakePanel(opciones) {
       return { ok: true };
     },
     async pagosBold() { red(); return copia(s.pagos); },
+    async reporteVentas(desde, hasta) { red(); reg('reporteVentas', [desde, hasta]); return { totales: { ventas: 3, total_cop: 30000, ticket_promedio_cop: 10000 }, por_sabor: [], por_tamano: [], por_hora: [], por_canal: [] }; },
+    async reporteCanjes(desde, hasta) { red(); reg('reporteCanjes', [desde, hasta]); return { canjes: { cantidad: 0, puntos: 0 }, puntos_acreditados: 0, costo_total_cop: 0, costo_sobre_ventas_pct: 0, costo_premios: [] }; },
+    async listarReglas() { red(); return copia(s.reglas); },
+    async cambiarRegla(clave, valor, pin) {
+      red(); reg('cambiarRegla', [clave, valor, pin]);
+      if (pin !== s.pin) return pinMal();
+      const vigente = s.reglas.find((r) => r.clave === clave && !r.vigente_hasta);
+      vigente.vigente_hasta = '2026-11-10T15:00:00Z';
+      s.reglas.push({ ...vigente, version: vigente.version + 1, valor, vigente_desde: '2026-11-10T15:00:00Z', vigente_hasta: null });
+      return { ok: true, clave, version: vigente.version + 1 };
+    },
+    async listarBanderas() { red(); return copia(s.banderas); },
+    async cambiarBandera(clave, activa, desde, hasta, pin) {
+      red(); reg('cambiarBandera', [clave, activa, desde, hasta, pin]);
+      if (pin !== s.pin) return pinMal();
+      s.banderas.find((b) => b.clave === clave).activa = activa;
+      return { ok: true, clave, activa };
+    },
+    async puntoDeVenta() { red(); return copia(s.punto); },
+    async rotarTokenEntrada(pin) {
+      red(); reg('rotarTokenEntrada', [pin]);
+      if (pin !== s.pin) return pinMal();
+      s.punto = { token: 'b'.repeat(48), rotado_en: '2026-11-10T15:00:00Z' };
+      return { ok: true, token: s.punto.token };
+    },
+    async auditoria(limite) { red(); reg('auditoria', limite); return copia(s.auditoria); },
   };
 }
 
@@ -146,7 +186,7 @@ describe('Panel: acceso', () => {
     await escribir('[data-campo="mfa"]', '123456');
     await click('[data-accion="verificar-mfa"]');
     await esperar(12);
-    expect($$('[data-pestana]').map((b) => b.dataset.pestana)).toEqual(['alertas', 'cuentas', 'pantallas', 'pagos']);
+    expect($$('[data-pestana]').map((b) => b.dataset.pestana)).toEqual(['alertas', 'cuentas', 'pantallas', 'pagos', 'reportes', 'reglas', 'banderas', 'entrada', 'auditoria']);
   });
 
   it('el título es del panel y entra directo al dueño con sesión ya iniciada', async () => {
@@ -543,6 +583,104 @@ describe('Panel: pagos Bold', () => {
     await irA('pagos');
     expect($('[data-campo="conciliacion"]').dataset.estado).toBe('detenida');
     expect(texto('[data-campo="conciliacion"]')).toContain('lleva rato sin correr');
+  });
+});
+
+describe('Panel: reportes, reglas, banderas, QR de entrada y auditoría (H9b)', () => {
+  it('reportes: pide el rango y muestra el resumen', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await irA('reportes');
+    await click('[data-accion="ver-reportes"]');
+    expect(api._s.llamadas.some((l) => l[0] === 'reporteVentas')).toBe(true);
+    expect(texto('[data-campo="resumen"]')).toContain('3 ventas');
+  });
+
+  it('reglas: muestra la vigente con su historial y un cambio crea una versión nueva con PIN', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await irA('reglas');
+    const fila = $('[data-regla="puntos.cop_por_punto"]');
+    expect(fila.querySelector('[data-campo="valor"]').textContent).toBe('1000');
+    expect(fila.querySelector('[data-campo="historial"]').textContent).toContain('1500');
+    await click('[data-regla="puntos.cop_por_punto"] [data-accion="cambiar-regla"]');
+    await escribir('[data-campo="valor-regla"]', '1200');
+    await click('[data-accion="guardar-regla"]');
+    await responder('4321');
+    await esperar(8);
+    expect(api._s.llamadas).toContainEqual(['cambiarRegla', ['puntos.cop_por_punto', 1200, '4321']]);
+    expect(texto('[data-regla="puntos.cop_por_punto"] [data-campo="valor"]')).toBe('1200');
+    expect(texto('.avisos')).toContain('versión 3');
+  });
+
+  it('reglas: un JSON inválido o sin cambios no llega al servidor, y un PIN malo no cambia nada', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await irA('reglas');
+    await click('[data-regla="pin.max_intentos"] [data-accion="cambiar-regla"]');
+    await escribir('[data-campo="valor-regla"]', 'cinco');
+    await click('[data-accion="guardar-regla"]');
+    expect(texto('[data-campo="error-regla"]')).toContain('JSON válido');
+    await escribir('[data-campo="valor-regla"]', '5');
+    await click('[data-accion="guardar-regla"]');
+    expect(texto('[data-campo="error-regla"]')).toContain('No cambiaste nada');
+    await escribir('[data-campo="valor-regla"]', '7');
+    await click('[data-accion="guardar-regla"]');
+    await responder('0000');
+    await esperar(6);
+    expect(texto('[data-campo="error-regla"]')).toContain('PIN incorrecto');
+    expect(api._s.reglas.filter((r) => r.clave === 'pin.max_intentos').length).toBe(1);
+  });
+
+  it('banderas: apagar una sensible pide confirmar y PIN; encender una apagada solo el PIN', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await irA('banderas');
+    expect(texto('[data-bandera="pago_en_linea_bold"] [data-campo="estado"]')).toBe('Encendida');
+    await click('[data-bandera="pago_en_linea_bold"] [data-accion="cambiar-bandera"]');
+    expect(document.body.textContent).toContain('impide que los clientes paguen en línea');
+    await click('[data-accion="si-confirmar"]');
+    await responder('4321');
+    await esperar(6);
+    expect(texto('[data-bandera="pago_en_linea_bold"] [data-campo="estado"]')).toBe('Apagada');
+    await click('[data-bandera="referidos"] [data-accion="cambiar-bandera"]');
+    await responder('4321');
+    await esperar(6);
+    expect(texto('[data-bandera="referidos"] [data-campo="estado"]')).toBe('Encendida');
+    expect(api._s.llamadas.filter((l) => l[0] === 'cambiarBandera').length).toBe(2);
+  });
+
+  it('QR de entrada: se muestra y rotarlo pide confirmación y PIN', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await irA('entrada');
+    expect($('[data-campo="qr-entrada"]').dataset.url).toBe('https://naidi.test/cuenta/#entrada=' + 'a'.repeat(48));
+    expect($('[data-campo="qr-entrada"] svg')).not.toBeNull();
+    await click('[data-accion="rotar-entrada"]');
+    await click('[data-accion="si-confirmar"]');
+    await responder('0000');
+    await esperar(4);
+    expect(api._s.punto.token).toBe('a'.repeat(48));                      // PIN malo: no cambia
+    await click('[data-accion="rotar-entrada"]');
+    await click('[data-accion="si-confirmar"]');
+    await responder('4321');
+    await esperar(6);
+    expect($('[data-campo="qr-entrada"]').dataset.url).toContain('b'.repeat(48));
+    expect(texto('[data-campo="rotado"]')).toContain('Último cambio');
+  });
+
+  it('auditoría: lista los movimientos con nombres claros y se puede filtrar', async () => {
+    const api = crearFakePanel();
+    await entrar(api);
+    await irA('auditoria');
+    expect(api._s.llamadas).toContainEqual(['auditoria', 200]);
+    expect($$('[data-auditoria]').length).toBe(2);
+    expect(texto('[data-tabla="auditoria"]')).toContain('Cambió una regla');
+    expect(texto('[data-tabla="auditoria"]')).toContain('Anuló una venta');
+    await escribir('[data-campo="buscar-auditoria"]', 'anular');
+    expect($$('[data-auditoria]').length).toBe(1);
+    await escribir('[data-campo="buscar-auditoria"]', 'zzz');
+    expect($('[data-campo="sin-auditoria"]')).not.toBeNull();
   });
 });
 

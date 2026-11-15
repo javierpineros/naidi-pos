@@ -49,5 +49,35 @@ export function crearApiPanel(client) {
 
     // ---- Pagos Bold
     pagosBold: () => rpc('pagos_bold_resumen'),
+
+    // ---- Reportes (los mismos del POS)
+    reporteVentas: base.reporteVentas,
+    reporteCanjes: base.reporteCanjes,
+
+    // ---- Reglas y banderas (lectura directa: las políticas dejan ver a todo el personal; escribir exige dueño con PIN)
+    listarReglas: async () => {
+      const { data, error } = await client.from('reglas_negocio').select('clave, version, valor, descripcion, publica, vigente_desde, vigente_hasta')
+        .order('clave', { ascending: true }).order('version', { ascending: false });
+      if (error) throw traducirError(error);
+      return data;
+    },
+    cambiarRegla: (clave, valor, pin) => rpc('cambiar_regla', { p_clave: clave, p_valor: valor, p_pin: pin }),
+    listarBanderas: async () => {
+      const { data, error } = await client.from('banderas').select('clave, activa, desde, hasta, descripcion').order('clave', { ascending: true });
+      if (error) throw traducirError(error);
+      return data;
+    },
+    cambiarBandera: (clave, activa, desde, hasta, pin) => rpc('cambiar_bandera', { p_clave: clave, p_activa: activa, p_desde: desde, p_hasta: hasta, p_pin: pin }),
+
+    // ---- QR de entrada
+    puntoDeVenta: async () => {
+      const { data, error } = await client.from('punto_venta').select('token, rotado_en').eq('id', 1).maybeSingle();
+      if (error) throw traducirError(error);
+      return data;
+    },
+    rotarTokenEntrada: (pin) => rpc('rotar_token_entrada', { p_pin: pin }),
+
+    // ---- Auditoría
+    auditoria: (limite) => rpc('auditoria_reciente', { p_limite: limite || 200 }),
   };
 }
