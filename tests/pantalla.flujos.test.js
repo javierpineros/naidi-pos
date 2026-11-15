@@ -144,6 +144,27 @@ describe('pantalla del iPad: qué muestra', () => {
     expect(m.raiz.querySelector('svg')).toBeNull();
   });
 
+  it('mientras el vendedor modifica el pedido muestra lo que hay, avisa que se actualiza y no ofrece pagar todavía', async () => {
+    const actualizando = ventaConfirmada();
+    actualizando.venta.estado = 'actualizando';
+    m = montar({ llave: LLAVE, respuestas: [ventaConfirmada(), actualizando, ventaConfirmada()] });
+    m.pantalla.iniciar();
+    await esperar();
+    expect(m.raiz.textContent).toContain('Puedes pagar con');
+    await m.reloj.correr();
+    const t = m.raiz.textContent;
+    expect(t).toContain('Tu pedido');
+    expect(t).toContain('2 × Espresso');
+    expect(t).toContain('$27.900');
+    expect(t).toContain('Estamos actualizando tu pedido');
+    expect(t).not.toContain('Puedes pagar con');
+    expect(t).not.toContain('Total a pagar');
+    expect(t).not.toContain('@naidi');
+    await m.reloj.correr();                                   // el vendedor confirma de nuevo
+    expect(m.raiz.textContent).toContain('Puedes pagar con');
+    expect(m.raiz.textContent).not.toContain('Estamos actualizando');
+  });
+
   it('un pedido largo avisa que se desliza y un total de seis cifras no se parte', async () => {
     const datos = ventaConfirmada();
     datos.venta.lineas = Array.from({ length: 10 }, (_, i) => ({ nombre: 'Bowl ' + (i + 1), tamano: 'Grande', cantidad: 1, toppings: [], precio_unitario_cop: 20000, descuento_cop: 0, total_cop: 20000 }));

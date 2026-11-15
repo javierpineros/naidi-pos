@@ -20,6 +20,7 @@ function crearFakePanel(opciones) {
     nivel: o.nivel || 'aal2',
     factor: o.factor || null,
     activo: true,
+    verificacionVencida: !!o.verificacionVencida,
     pin: o.pin === null ? null : (o.pin || '4321'),
     alertas: o.alertas || [],
     resueltas: o.resueltas || [],
@@ -47,6 +48,12 @@ function crearFakePanel(opciones) {
     async fijarPin(nuevo, actual) {
       red(); reg('fijarPin', [nuevo, actual]);
       if (s.pin !== null && actual !== s.pin) return pinMal();
+      s.pin = nuevo;
+      return { ok: true };
+    },
+    async restablecerPin(nuevo) {
+      red(); reg('restablecerPin', [nuevo]);
+      if (s.verificacionVencida) return { ok: false, error: 'verificacion_vencida' };
       s.pin = nuevo;
       return { ok: true };
     },
@@ -222,6 +229,38 @@ describe('Panel: PIN del dueño', () => {
     await responder('2469');
     expect(texto('.avisos')).toContain('no coinciden');
     expect(api._s.pin).toBeNull();
+  });
+
+  it('"Olvidé mi PIN": pide el código de la app de verificación y crea un PIN nuevo sin pedir el actual', async () => {
+    const api = crearFakePanel({ factor: 'f-1' });
+    await entrar(api);
+    await click('[data-accion="olvide-pin"]');
+    await responder('654321');
+    await responder('1357');
+    await responder('1357');
+    expect(api._s.llamadas.filter((l) => l[0] === 'restablecerPin')[0][1]).toEqual(['1357']);
+    expect(api._s.llamadas.some((l) => l[0] === 'fijarPin')).toBe(false);
+    expect(texto('.avisos')).toContain('PIN restablecido');
+    expect(api._s.pin).toBe('1357');
+  });
+
+  it('"Olvidé mi PIN": si el servidor dice que la verificación venció, no cambia nada y lo explica', async () => {
+    const api = crearFakePanel({ factor: 'f-1', verificacionVencida: true });
+    await entrar(api);
+    await click('[data-accion="olvide-pin"]');
+    await responder('654321');
+    await responder('1357');
+    await responder('1357');
+    expect(texto('.avisos')).toContain('Vuelve a empezar');
+    expect(api._s.pin).toBe('4321');
+  });
+
+  it('"Olvidé mi PIN": cancelar el código no cambia nada', async () => {
+    const api = crearFakePanel({ factor: 'f-1' });
+    await entrar(api);
+    await click('[data-accion="olvide-pin"]');
+    await click('[data-accion="cancelar-texto"]');
+    expect(api._s.llamadas.some((l) => l[0] === 'restablecerPin')).toBe(false);
   });
 
   it('cancelar en cualquier paso no cambia nada', async () => {

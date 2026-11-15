@@ -1,13 +1,16 @@
 // Vista de venta. Dos modos:
-//  - "vivo": venta con cliente. Cada cambio pasa por el servidor (precios, premios y totales los calcula él).
-//  - "local": venta sin cliente. Se arma en el dispositivo y se cobra de una vez (admite vender sin internet).
+//  - "vivo": la venta ya existe en el servidor (con o sin cliente). Cada cambio pasa por él (precios, premios y totales
+//    los calcula él). Una venta sin cliente pasa a "vivo" al confirmarla, para que el iPad la muestre y el cliente la revise.
+//  - "local": venta sin cliente que aún se arma en el dispositivo (admite vender sin internet: si no hay conexión al
+//    confirmar, se cobra desde aquí y se sincroniza luego).
+// Una venta confirmada y sin pagar se puede "modificar": el servidor la reabre y el iPad sigue mostrándola mientras tanto.
 import { h, vaciar, agregar } from '../../lib/dom.js';
 import { fmtCop, MEDIOS } from '../../lib/format.js';
 import { precioLinea } from '../../lib/precio.js';
 import { qrSvg } from '../../lib/qr.js';
 import { crearPanelCatalogo, resumenLinea } from './catalogo.js';
 import { pedirTexto, confirmar } from './modal.js';
-import { nuevaClave, cobrarSinCliente } from '../vender.js';
+import { nuevaClave, cobrarSinCliente, confirmarSinClienteEnServidor } from '../vender.js';
 
 export function crearVistaVenta(ctx) {
   const el = h('section', { class: 'vista vista-venta', 'data-vista': 'venta' });
@@ -31,7 +34,7 @@ export function crearVistaVenta(ctx) {
       return await fn();
     } catch (e) {
       if (e.name === 'ErrorRed') {
-        ctx.avisar(v && v.modo === 'vivo'
+        ctx.avisar(v && v.modo === 'vivo' && v.cliente
           ? 'Sin conexión. Una venta con cliente necesita internet; si no vuelve, véndela sin cliente.'
           : 'Sin conexión con el servidor.', 'error');
       } else {
@@ -47,7 +50,7 @@ export function crearVistaVenta(ctx) {
   async function recargar() {
     if (!v || v.modo !== 'vivo') return;
     v.servidor = await ctx.api.venta(v.ventaId);
-    if (v.servidor && v.servidor.estado === 'alistando') v.vouchers = (await ctx.api.vouchersActivosDe(v.cliente.id)) || [];
+    if (v.servidor && v.servidor.estado === 'alistando' && v.cliente) v.vouchers = (await ctx.api.vouchersActivosDe(v.cliente.id)) || [];
   }
 
   // ---------------------------------------------------------------- Iniciar
@@ -81,17 +84,8 @@ export function crearVistaVenta(ctx) {
       if (row.estado !== 'confirmada' && row.estado !== 'alistando') throw new Error('Esa venta ya no está abierta.');
       v = { ...vacia(), modo: 'vivo', idem: row.idempotency_key, ventaId, servidor: row, fase: row.estado === 'confirmada' ? 'pago' : 'armando',
         cliente: row.cliente_id ? { id: row.cliente_id, nombre: 'Cliente', inicial: '' } : null };
-      if (!row.cliente_id) {
-        // venta sin cliente que ya existe en el servidor: se continúa por ahí
-        v.cliente = null;
-        v.progreso = { ventaId };
-        v.lineas = row.venta_lineas.map((l) => ({ producto: l.producto_clave, tamano: l.tamano, presentacion: l.presentacion, base: l.base, toppings: (l.toppings || []).map((t) => t.clave), cantidad: l.cantidad }));
-        v.modo = 'local';
-        v.servidor = null;
-        v.fase = row.estado === 'confirmada' ? 'pago' : 'armando';
-      } else {
-        await recargar();
-      }
+      // Con o sin cliente, una venta que ya existe en el servidor se continúa por ahí.
+      await recargar();
       ctx.irA('venta');
     });
   }
@@ -131,7 +125,10 @@ export function crearVistaVenta(ctx) {
   }
 
   async function quitar(fila) {
-    if (v.modo === 'local') { v.lineas.splice(fila.indice, 1); pintar(); return; }
+    if (v.modo === 'local') {
+      if (v.progreso && v.progreso.ventaId) { ctx.avisar('La venta ya se envió a medias; termina de confirmarla o descártala.', 'error'); return; }
+      v.lineas.splice(fila.indice, 1); pintar(); return;
+    }
     await guardar(async () => { await ctx.api.quitarLinea(fila.id); await recargar(); });
   }
 
@@ -173,14 +170,32 @@ export function crearVistaVenta(ctx) {
   async function confirmarPedido() {
     if (v.modo === 'local') {
       if (!v.lineas.length) { ctx.avisar('Agrega al menos un producto.', 'error'); return; }
-      v.fase = 'pago';
-      pintar();
+      await guardar(async () => {
+        // Con internet, la venta se confirma en el servidor: el iPad muestra el detalle y el cliente lo revisa antes de pagar.
+        const ventaId = await confirmarSinClienteEnServidor({ api: ctx.api, venta: v, enLinea: ctx.enLinea });
+        if (ventaId) {
+          v = { ...vacia(), modo: 'vivo', idem: v.idem, ventaId, medio: v.medio };
+          await recargar();
+        }
+        // Sin internet se cobra desde el POS, como siempre: la venta nunca se bloquea.
+        v.fase = 'pago';
+      });
       return;
     }
     await guardar(async () => {
       await ctx.api.confirmarVenta(v.ventaId);
       await recargar();
       v.fase = 'pago';
+    });
+  }
+
+  // El cliente revisó el pedido en el iPad y quiere agregar (o quitar) algo: la venta vuelve a armarse y el iPad la
+  // sigue mostrando como "actualizando" hasta que se confirme de nuevo.
+  async function modificarPedido() {
+    await guardar(async () => {
+      await ctx.api.reabrirVenta(v.ventaId);
+      await recargar();
+      v.fase = 'armando';
     });
   }
 
@@ -317,7 +332,7 @@ export function crearVistaVenta(ctx) {
       const res = r.resultado;
       nodos.push(h('h2', { 'data-campo': 'pagado' }, 'Pagado ✓'));
       if (res.cambio_cop !== null && res.cambio_cop !== undefined) nodos.push(h('p', { class: 'mono' }, 'Cambio: ' + fmtCop(res.cambio_cop)));
-      if (v.modo === 'vivo') nodos.push(h('p', { 'data-campo': 'puntos' }, 'Puntos acreditados a ' + v.cliente.nombre + ': ' + (res.puntos_acreditados || 0)));
+      if (v.modo === 'vivo' && v.cliente) nodos.push(h('p', { 'data-campo': 'puntos' }, 'Puntos acreditados a ' + v.cliente.nombre + ': ' + (res.puntos_acreditados || 0)));
       if (res.qr_token) {
         const url = ctx.origen() + '/cuenta/#qr=' + res.qr_token;
         nodos.push(h('div', { class: 'qr-posventa', 'data-campo': 'qr-posventa' },
@@ -376,10 +391,12 @@ export function crearVistaVenta(ctx) {
     if (v.fase === 'armando') {
       acciones.push(
         h('button', { type: 'button', class: 'btn btn-primario grande', 'data-accion': 'confirmar-pedido', disabled: !lista.length || ocupado, onclick: confirmarPedido },
-          v.modo === 'vivo' ? 'Confirmar pedido' : 'Cobrar'),
+          'Confirmar pedido'),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'descartar', disabled: ocupado, onclick: descartar }, 'Descartar venta'));
     } else if (v.modo === 'vivo') {
-      acciones.push(h('button', { type: 'button', class: 'btn', 'data-accion': 'cancelar-venta', disabled: ocupado, onclick: cancelarConfirmada }, 'Cancelar venta'));
+      acciones.push(
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'modificar-pedido', disabled: ocupado, onclick: modificarPedido }, 'Modificar pedido'),
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'cancelar-venta', disabled: ocupado, onclick: cancelarConfirmada }, 'Cancelar venta'));
     } else if (!v.progreso) {
       acciones.push(h('button', { type: 'button', class: 'btn', 'data-accion': 'volver-a-armar', onclick: () => { v.fase = 'armando'; pintar(); } }, 'Volver a editar'));
     }

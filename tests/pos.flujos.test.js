@@ -45,6 +45,35 @@ describe('acceso del personal', () => {
     expect($('[data-vista="espera"]')).toBeNull();
   });
 
+  it('tras un código incorrecto o vencido se puede reenviar uno nuevo o cambiar de correo', async () => {
+    const api = crearFakeApi();
+    await montarPos(api);
+    await escribir('[data-campo="correo"]', 'cajero@naidi.test');
+    await click('[data-accion="enviar-codigo"]');
+    await escribir('[data-campo="codigo"]', '000000');
+    await click('[data-accion="verificar-codigo"]');
+    expect(texto('[data-zona="error"]')).toMatch(/no es correcto/);
+    await click('[data-accion="reenviar-codigo"]');
+    expect(texto('[data-zona="aviso"]')).toMatch(/código nuevo/);
+    expect(texto('[data-zona="error"]')).toBe('');
+    expect($('[data-campo="codigo"]').value).toBe('');
+    await click('[data-accion="otro-correo"]');
+    expect($('[data-campo="correo"]')).not.toBeNull();
+  });
+
+  it('desde el segundo factor del dueño se puede volver al inicio', async () => {
+    const api = crearFakeApi({ rol: 'dueno', factor: 'f-9' });
+    await montarPos(api);
+    await escribir('[data-campo="correo"]', 'dueno@naidi.test');
+    await click('[data-accion="enviar-codigo"]');
+    await escribir('[data-campo="codigo"]', '123456');
+    await click('[data-accion="verificar-codigo"]');
+    expect($('[data-campo="mfa"]')).not.toBeNull();
+    await click('[data-accion="volver-acceso"]');
+    expect($('[data-campo="correo"]')).not.toBeNull();
+    expect(api._s.sesion).toBeNull();
+  });
+
   it('una cuenta que no es del personal no entra', async () => {
     const api = crearFakeApi({ tienePerfil: false });
     await montarPos(api);
@@ -400,6 +429,132 @@ describe('venta sin cliente', () => {
     expect(texto('[data-campo="cambio"]')).toBe('Cambio: $2.000');
     await click('[data-accion="registrar-pago"]');
     expect(texto('.listo')).toContain('Cambio: $2.000');
+  });
+});
+
+describe('venta visible en el iPad y modificable', () => {
+  const eventos = (api, nombre) => api._s.llamadas.filter((l) => l[0] === nombre);
+
+  it('sin cliente y con internet, confirmar manda la venta al servidor antes de cobrar (así el iPad la muestra)', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-producto="latte"]');
+    expect(api._s.ventas.size).toBe(0);                       // armando: todavía solo en el POS
+    await click('[data-accion="confirmar-pedido"]');
+    const v = [...api._s.ventas.values()][0];
+    expect(v).toMatchObject({ estado: 'confirmada', cliente_id: null });   // confirmada y sin pagar: el iPad ya la ve
+    expect(v.venta_lineas.length).toBe(2);
+    expect(texto('[data-campo="cliente"]')).toBe('Sin cliente');
+    expect($('[data-accion="modificar-pedido"]')).not.toBeNull();
+    await click('[data-medio="datafono_bold"]');
+    await click('[data-accion="registrar-pago"]');
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado ✓');
+    expect($('[data-campo="qr-posventa"] svg')).not.toBeNull();   // sin cliente: sigue el QR para reclamar puntos
+    expect(v.estado).toBe('pagada');
+    expect(eventos(api, 'crearVenta').length).toBe(1);
+  });
+
+  it('el cliente pide agregar algo: "Modificar pedido" reabre la venta, se agrega y se confirma de nuevo', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    const v = [...api._s.ventas.values()][0];
+    const totalAntes = v.total_cop;
+    await click('[data-accion="modificar-pedido"]');
+    expect(eventos(api, 'reabrirVenta').length).toBe(1);
+    expect(v.estado).toBe('alistando');
+    expect($('[data-accion="confirmar-pedido"]')).not.toBeNull();     // vuelve a armarse
+    expect($('[data-accion="registrar-pago"]')).toBeNull();
+    await click('[data-producto="latte"]');
+    expect(v.venta_lineas.length).toBe(2);
+    expect(v.total_cop).toBeGreaterThan(totalAntes);
+    await click('[data-accion="confirmar-pedido"]');
+    expect(v.estado).toBe('confirmada');
+    await click('[data-accion="monto-exacto"]');
+    await click('[data-accion="registrar-pago"]');
+    expect(v).toMatchObject({ estado: 'pagada' });
+    expect(v.venta_lineas.length).toBe(2);
+    expect([...api._s.ventas.values()].length).toBe(1);               // sigue siendo la misma venta
+  });
+
+  it('también se puede quitar un producto de una venta ya confirmada', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-producto="latte"]');
+    await click('[data-accion="confirmar-pedido"]');
+    await click('[data-accion="modificar-pedido"]');
+    await click('[data-accion="quitar-linea"]');
+    const v = [...api._s.ventas.values()][0];
+    expect(v.venta_lineas.length).toBe(1);
+    await click('[data-accion="confirmar-pedido"]');
+    expect(v.estado).toBe('confirmada');
+  });
+
+  it('una venta con cliente también se modifica después de confirmada', async () => {
+    const api = crearFakeApi({ espera: [copia(JUAN)] });
+    await entrarComoPersonal(api);
+    await click('[data-accion="atender"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    await click('[data-accion="modificar-pedido"]');
+    await click('[data-producto="latte"]');
+    await click('[data-accion="confirmar-pedido"]');
+    const v = api._s.ventas.get('v-1');
+    expect(v).toMatchObject({ estado: 'confirmada', cliente_id: 'c-juan' });
+    expect(v.venta_lineas.length).toBe(2);
+    expect(texto('[data-campo="cliente"]')).toBe('Cliente: Juan G.');
+  });
+
+  it('si el servidor no deja modificar (por ejemplo ya se pagó) lo dice y no cambia nada', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    api.reabrirVenta = async () => { throw new Error('Solo se modifica una venta confirmada y sin pagar (estado actual: pagada).'); };
+    await click('[data-accion="modificar-pedido"]');
+    expect(document.body.textContent).toContain('sin pagar');
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();       // sigue en la fase de cobro
+  });
+
+  it('si se cae la conexión a medio enviar, se reintenta sin duplicar la venta ni las líneas', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-producto="latte"]');
+    const original = api.agregarLinea;
+    let fallos = 0;
+    api.agregarLinea = async (id, l) => {
+      if (api._s.ventas.get(id).venta_lineas.length === 1 && fallos++ === 0) { const { ErrorRed } = await import('../src/lib/errores.js'); throw new ErrorRed(); }
+      return original(id, l);
+    };
+    await click('[data-accion="confirmar-pedido"]');
+    expect(document.body.textContent).toContain('Sin conexión');
+    expect($('[data-accion="registrar-pago"]')).toBeNull();           // todavía no pasó al cobro
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-accion="registrar-pago"]')).not.toBeNull();
+    expect(api._s.ventas.size).toBe(1);
+    expect([...api._s.ventas.values()][0].venta_lineas.length).toBe(2);
+    expect([...api._s.ventas.values()][0].estado).toBe('confirmada');
+  });
+
+  it('descartar una venta reabierta la cancela', async () => {
+    const api = crearFakeApi();
+    await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    await click('[data-accion="modificar-pedido"]');
+    await click('[data-accion="descartar"]');
+    await click('[data-accion="si-confirmar"]');
+    expect([...api._s.ventas.values()][0].estado).toBe('cancelada');
   });
 });
 

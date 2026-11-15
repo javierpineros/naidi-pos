@@ -5,7 +5,8 @@ import { h, vaciar } from '../../lib/dom.js';
 export function montarAcceso({ api, contenedor, alListo, titulo, soloDueno }) {
   const zona = h('div', { class: 'acceso-zona' });
   const error = h('p', { class: 'error', role: 'alert', 'data-zona': 'error' });
-  contenedor.append(h('section', { class: 'acceso' }, h('h1', { class: 'titulo' }, titulo || 'Naidi POS'), zona, error));
+  const aviso = h('p', { class: 'aviso', role: 'status', 'data-zona': 'aviso' });
+  contenedor.append(h('section', { class: 'acceso' }, h('h1', { class: 'titulo' }, titulo || 'Naidi POS'), zona, aviso, error));
   let correo = '';
   let ocupado = false;
 
@@ -17,6 +18,7 @@ export function montarAcceso({ api, contenedor, alListo, titulo, soloDueno }) {
     if (ocupado) return;
     ocupado = true;
     mostrarError(null);
+    aviso.textContent = '';
     try {
       await fn();
     } catch (e) {
@@ -52,8 +54,21 @@ export function montarAcceso({ api, contenedor, alListo, titulo, soloDueno }) {
         await api.verificarCodigo(correo, c.input.value.trim());
         await tras();
       }) }, 'Entrar'),
-      h('button', { type: 'button', class: 'btn', 'data-accion': 'otro-correo', onclick: pasoCorreo }, 'Usar otro correo')
+      h('button', { type: 'button', class: 'btn', 'data-accion': 'reenviar-codigo', onclick: () => protegido(async () => {
+        await api.enviarCodigo(correo);
+        c.input.value = '';
+        aviso.textContent = 'Te enviamos un código nuevo. El anterior ya no sirve.';
+      }) }, 'Reenviar código'),
+      h('button', { type: 'button', class: 'btn', 'data-accion': 'otro-correo', onclick: () => { mostrarError(null); pasoCorreo(); } }, 'Usar otro correo')
     );
+  }
+
+  // Desde el segundo factor se puede volver al inicio: se cierra la sesión a medias y se pide el correo otra vez.
+  function botonVolver() {
+    return h('button', { type: 'button', class: 'btn', 'data-accion': 'volver-acceso', onclick: () => protegido(async () => {
+      await api.salir();
+      pasoCorreo();
+    }) }, 'Volver');
   }
 
   async function tras() {
@@ -87,7 +102,8 @@ export function montarAcceso({ api, contenedor, alListo, titulo, soloDueno }) {
       h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'verificar-mfa', onclick: () => protegido(async () => {
         await api.mfaVerificar(factorId, c.input.value.trim());
         alListo({ ses: await api.sesion(), perfil });
-      }) }, 'Verificar')
+      }) }, 'Verificar'),
+      botonVolver()
     );
   }
 
@@ -101,7 +117,8 @@ export function montarAcceso({ api, contenedor, alListo, titulo, soloDueno }) {
       h('button', { type: 'button', class: 'btn btn-primario', 'data-accion': 'verificar-mfa', onclick: () => protegido(async () => {
         await api.mfaVerificar(alta.id, c.input.value.trim());
         alListo({ ses: await api.sesion(), perfil });
-      }) }, 'Activar y entrar')
+      }) }, 'Activar y entrar'),
+      botonVolver()
     );
   }
 

@@ -31,6 +31,8 @@ export function crearApiPanel(client) {
     // ---- PIN del dueño. fijarPin devuelve { ok:false, error } si el PIN actual falla.
     tengoPin: () => rpc('tengo_pin'),
     fijarPin: (nuevo, actual) => rpc('fijar_pin', { p_nuevo: nuevo, p_actual: actual || null }),
+    // Recuperación: sin PIN actual, pero el servidor exige haber confirmado el segundo factor hace pocos minutos.
+    restablecerPin: (nuevo) => rpc('restablecer_pin', { p_nuevo: nuevo }),
 
     // ---- Alertas y cuentas
     listaAlertas: (resueltas) => rpc('lista_alertas', { p_resueltas: !!resueltas }),

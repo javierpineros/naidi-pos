@@ -99,18 +99,24 @@ export function crearPantalla(o) {
     const pago = textoPago(datos);
     const textoTotal = fmtCop(v.total_cop);
     const formas = (datos.formas_pago || []).map((f) => h('li', { class: 'forma' }, ETIQUETA_PAGO[f] || f));
+    // "actualizando": el vendedor está agregando o quitando algo a pedido del cliente; todavía no se paga.
+    const actualizando = v.estado === 'actualizando';
+    const cobro = actualizando
+      ? [h('div', { class: 'total-rotulo' }, 'Total hasta ahora'),
+         h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
+         h('div', { class: 'formas-rotulo' }, 'Estamos actualizando tu pedido…')]
+      : [h('div', { class: 'total-rotulo' }, 'Total a pagar'),
+         h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
+         h('div', { class: 'formas-rotulo' }, 'Puedes pagar con'),
+         h('ul', { class: 'formas' }, formas),
+         pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null];
     return marco('venta', h('div', { class: 'venta' },
       h('div', { class: 'venta-detalle' },
         h('h1', {}, 'Tu pedido'),
         (v.lineas || []).length > 6 ? h('p', { class: 'pista' }, (v.lineas || []).length + ' productos. Desliza para verlos todos.') : null,
         h('ul', { class: 'lineas' }, (v.lineas || []).map(lineaNode)),
         v.descuento_cop > 0 ? h('div', { class: 'ahorro' }, 'Descuento total −' + fmtCop(v.descuento_cop)) : null),
-      h('div', { class: 'venta-pago' },
-        h('div', { class: 'total-rotulo' }, 'Total a pagar'),
-        h('div', { class: 'total mono' + (textoTotal.length > 9 ? ' largo' : '') }, textoTotal),
-        h('div', { class: 'formas-rotulo' }, 'Puedes pagar con'),
-        h('ul', { class: 'formas' }, formas),
-        pago.valor ? h('div', { class: 'transferencia' }, h('span', {}, 'Transferencia a ' + pago.rotulo), h('strong', { class: 'mono' }, pago.valor)) : null)));
+      h('div', { class: 'venta-pago' }, cobro)));
   }
 
   function vistaPagada(datos) {

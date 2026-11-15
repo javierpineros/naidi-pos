@@ -15,6 +15,41 @@ export function nuevaClave() {
   return x.slice(0, 8) + '-' + x.slice(8, 12) + '-' + x.slice(12, 16) + '-' + x.slice(16, 20) + '-' + x.slice(20);
 }
 
+// Confirma en el servidor una venta sin cliente que se armó en el POS, para que el iPad la muestre y el cliente
+// la revise antes de pagar. Devuelve el id de la venta, o null si no hay conexión (entonces se cobra en el POS, como siempre:
+// la venta nunca se bloquea). Si la red se cae a medio camino lanza ErrorRed y conserva venta.progreso: al volver a llamar
+// continúa donde quedó, sin duplicar.
+export async function confirmarSinClienteEnServidor({ api, venta, enLinea }) {
+  const hayRed = enLinea || (() => true);
+  const p = venta.progreso || (venta.progreso = { ventaId: null });
+  let reanudando = true;
+  if (!p.ventaId) {
+    reanudando = false;
+    if (!hayRed()) return null;
+    try {
+      p.ventaId = await api.crearVenta({ idem: venta.idem, cliente: null });
+    } catch (e) {
+      if (esErrorRed(e)) return null;
+      throw e;
+    }
+  }
+  let estado = 'alistando';
+  let enviadas = 0;
+  if (reanudando) {
+    const v = await api.venta(p.ventaId);
+    if (!v) throw new Error('No encuentro la venta en el servidor.');
+    estado = v.estado;
+    enviadas = v.venta_lineas.length;
+  }
+  if (estado === 'alistando') {
+    for (let i = enviadas; i < venta.lineas.length; i++) await api.agregarLinea(p.ventaId, venta.lineas[i]);
+    await api.confirmarVenta(p.ventaId);
+  } else if (estado !== 'confirmada') {
+    throw new Error('La venta quedó en estado "' + estado + '" y no se puede confirmar.');
+  }
+  return p.ventaId;
+}
+
 // venta: { idem, lineas:[{producto,tamano,presentacion,base,toppings,cantidad}], medio, efectivo_recibido?, total_estimado, progreso? }
 // Devuelve { modo:'servidor', resultado } o { modo:'cola' }. Lanza ErrorRed si se cae la conexión a medio camino
 // (la venta conserva su progreso: se vuelve a llamar con el mismo objeto para continuar).
