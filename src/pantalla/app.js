@@ -150,7 +150,7 @@ export function crearPantalla(o) {
     if (v.codigo_puntos) {
       nodos.push(h('div', { class: 'puntos-qr', 'data-zona': 'puntos-qr' },
         h('div', { class: 'puntos-qr-texto' }, '¿Quieres sumar puntos con esta compra? Escanea el código con la cámara de tu celular.'),
-        h('div', { class: 'pago-qr-caja', 'data-qr': urlPuntos(v.codigo_puntos) }, qr(urlPuntos(v.codigo_puntos)))));
+        h('div', { class: 'puntos-qr-caja', 'data-qr': urlPuntos(v.codigo_puntos) }, qr(urlPuntos(v.codigo_puntos)))));
     }
     return marco('pagada', h('div', { class: 'mensaje' + (v.codigo_puntos ? ' con-puntos' : '') }, nodos));
   }
