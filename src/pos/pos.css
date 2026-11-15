@@ -136,6 +136,8 @@ label input, label select { margin-top: 4px; font-weight: 400; }
 .premio span { flex: 1; min-width: 160px; font-weight: 600; }
 .premio select { width: auto; max-width: 220px; }
 .pago { margin-top: 12px; padding-top: 8px; border-top: 2px solid var(--border); }
+.aviso-ipad { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px; margin: 6px 0; border: 1px dashed var(--accent); border-radius: 12px; }
+.aviso-ipad p { flex: 1; min-width: 200px; margin: 0; font-weight: 600; }
 .acciones { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 12px; }
 .listo { text-align: center; }
 .qr-posventa { max-width: 260px; margin: 12px auto; }

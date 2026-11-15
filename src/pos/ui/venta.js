@@ -208,6 +208,7 @@ export function crearVistaVenta(ctx) {
           await recargar();
         }
         // Sin internet se cobra desde el POS, como siempre: la venta nunca se bloquea.
+        if (!ventaId) ctx.avisar('No hay conexión con el servidor: el iPad no ve este pedido. Cóbralo en caja o usa "Enviar al iPad" cuando vuelva.', 'error');
         v.fase = 'pago';
       });
       return;
@@ -216,6 +217,19 @@ export function crearVistaVenta(ctx) {
       await ctx.api.confirmarVenta(v.ventaId);
       await recargar();
       v.fase = 'pago';
+    });
+  }
+
+  // Pedido que se confirmó sin conexión (solo vive en el POS): lo manda al servidor para que el iPad lo muestre y el cliente pueda pagar con QR.
+  async function enviarAlIpad() {
+    if (!v || v.modo !== 'local' || v.fase !== 'pago') return;
+    await guardar(async () => {
+      const ventaId = await confirmarSinClienteEnServidor({ api: ctx.api, venta: v, enLinea: ctx.enLinea });
+      if (!ventaId) { ctx.avisar('Sigue sin conexión con el servidor. Cobra en caja o intenta de nuevo en un momento.', 'error'); return; }
+      v = { ...vacia(), modo: 'vivo', idem: v.idem, ventaId, medio: v.medio };
+      await recargar();
+      v.fase = 'pago';
+      ctx.avisar('Pedido enviado al iPad.', 'ok');
     });
   }
 
@@ -362,7 +376,13 @@ export function crearVistaVenta(ctx) {
     recibido.addEventListener('input', () => { v.recibido = recibido.value; actualizar(); });
     const medios = ['efectivo', 'datafono_bold', 'transferencia'].map((m) =>
       h('button', { type: 'button', class: 'chip' + (v.medio === m ? ' activo' : ''), 'data-medio': m, onclick: () => { v.medio = m; pintar(); } }, MEDIOS[m]));
-    const nodos = [h('h3', null, 'Cobro'), h('div', { class: 'chips' }, medios)];
+    const nodos = [h('h3', null, 'Cobro')];
+    if (v.modo === 'local') {
+      nodos.push(h('div', { class: 'aviso-ipad', 'data-campo': 'sin-ipad' },
+        h('p', null, 'Este pedido aún no está en el iPad, así que el cliente no lo ve ni puede pagar con QR.'),
+        h('button', { type: 'button', class: 'btn', 'data-accion': 'enviar-ipad', disabled: ocupado, onclick: enviarAlIpad }, 'Enviar al iPad')));
+    }
+    nodos.push(h('div', { class: 'chips' }, medios));
     if (v.medio === 'efectivo') {
       nodos.push(h('label', null, 'Efectivo recibido', recibido),
         h('button', { type: 'button', class: 'btn', 'data-accion': 'monto-exacto', onclick: () => { v.recibido = String(total); pintar(); } }, 'Monto exacto'), cambio);

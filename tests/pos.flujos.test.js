@@ -375,6 +375,35 @@ describe('venta sin cliente', () => {
     expect(v.venta_lineas.length).toBe(2);
   });
 
+  it('confirmada sin conexión avisa que el iPad no la ve y "Enviar al iPad" la pasa al servidor al volver la red', async () => {
+    const api = crearFakeApi();
+    const red = { on: true };
+    await entrarComoPersonal(api, { enLinea: () => red.on });
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-atajo="amazonas:pequeno"]');
+    red.on = false; api._s.red = false;
+    await click('[data-accion="confirmar-pedido"]');
+    expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+    expect(api._s.ventas.size).toBe(0);
+
+    await click('[data-accion="enviar-ipad"]');                           // sigue sin red: no pasa nada y el aviso permanece
+    expect($('[data-campo="sin-ipad"]')).not.toBeNull();
+    expect(api._s.ventas.size).toBe(0);
+
+    red.on = true; api._s.red = true;
+    await click('[data-accion="enviar-ipad"]');
+    expect($('[data-campo="sin-ipad"]')).toBeNull();
+    expect($('[data-accion="modificar-pedido"]')).not.toBeNull();         // ya es una venta del servidor
+    const v = [...api._s.ventas.values()][0];
+    expect(v).toMatchObject({ estado: 'confirmada', cliente_id: null });
+    expect(v.venta_lineas.length).toBe(2);
+    await click('[data-medio="datafono_bold"]');
+    await click('[data-accion="registrar-pago"]');
+    expect(texto('[data-campo="pagado"]')).toBe('Pagado ✓');
+    expect(api._s.ventas.size).toBe(1);                                   // una sola venta, sin duplicar
+  });
+
   it('SIN internet: guarda la venta localmente y la sincroniza cuando vuelve la conexión (una sola vez)', async () => {
     const api = crearFakeApi();
     const red = { on: true };
