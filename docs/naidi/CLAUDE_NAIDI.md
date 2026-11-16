@@ -27,6 +27,8 @@ Sistema para la heladería Naidi (bowls de açaí y copoazú, Bogotá) que une s
 
 Todo lo que corra en el iPad (pantalla del cliente) debe cumplir `docs/naidi/COMPATIBILIDAD_IPAD.md`.
 
+**El equipo real es un iPad mini 2 con iOS 12.5.8 (Safari 12.1.2), ya probado en el mostrador; no hay que preguntar qué iPad es.** Sus pruebas con la pantalla del cliente cuentan como pruebas en Safari 12. Los resultados están en `COMPATIBILIDAD_IPAD.md`; el código del iPad se compila con `build.target: 'safari12'` y `tests/pantalla.safari12.test.js` revisa el resultado.
+
 ## Secretos
 
 No guardes llaves, tokens ni datos reales de clientes en el repositorio. Usa variables de entorno y un `.env.example` sin valores.
