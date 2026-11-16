@@ -151,6 +151,23 @@ describe('QR de entrada (#entrada=) y QR posterior a la venta (#qr=)', () => {
     expect(m.hash.v).toBe('');
   });
 
+  it('reclama los puntos de una compra pagada con el código de la venta (#venta=), como el QR del iPad', async () => {
+    const api = crearFakeCuenta({ sesion: SESION, perfil: CON_DATOS, saldo: 10 });
+    const codigo = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    const m = await montarCuenta(api, { hash: '#venta=' + codigo });
+    expect(api._s.llamadas).toContainEqual(['reclamarPuntosVenta', codigo]);
+    expect(texto('[data-campo="aviso"]')).toContain('Sumaste 25 puntos');
+    expect(texto('[data-campo="saldo"]')).toBe('35');
+    expect(m.hash.v).toBe('');
+  });
+
+  it('un código de venta mal formado no llega al servidor', async () => {
+    const api = crearFakeCuenta({ sesion: SESION, perfil: CON_DATOS });
+    await montarCuenta(api, { hash: '#venta=abc' });
+    expect(api._s.llamadas.some((l) => l[0] === 'reclamarPuntosVenta')).toBe(false);
+    expect(texto('[data-campo="aviso"]')).toContain('no es válido');
+  });
+
   it('un QR ya usado muestra el motivo del servidor', async () => {
     const api = crearFakeCuenta({ sesion: SESION, perfil: CON_DATOS });
     api._s.fallos.reclamarQr = 'Este QR no es válido, ya se usó o venció.';

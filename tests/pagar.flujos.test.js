@@ -145,6 +145,25 @@ describe('/pagar: pago con QR de una venta del POS', () => {
 });
 
 describe('/pagar: después del pago', () => {
+  it('muestra el número del pedido y, si se pueden reclamar los puntos, el botón para hacerlo', async () => {
+    const m = montar({ estados: [{ estado: 'abierta', total_cop: 17800, numero: 231 }, { estado: 'pagada', total_cop: 17800, numero: 231, puntos_reclamables: true }] });
+    m.pagar.iniciar();
+    await esperar(12);
+    expect(document.querySelector('[data-campo="numero"]').textContent).toBe('Pedido #231');
+    await m.correr();
+    const a = document.querySelector('[data-accion="reclamar-puntos"]');
+    expect(a).not.toBeNull();
+    expect(a.getAttribute('href')).toBe('/cuenta/#venta=' + CODIGO);
+    expect(document.querySelector('[data-campo="numero"]').textContent).toBe('Pedido #231');
+  });
+
+  it('si ya no se pueden reclamar los puntos, no ofrece el botón', async () => {
+    const m = montar({ estados: [{ estado: 'pagada', total_cop: 17800, numero: 231, puntos_reclamables: false }] });
+    m.pagar.iniciar();
+    await esperar(12);
+    expect(document.querySelector('[data-accion="reclamar-puntos"]')).toBeNull();
+  });
+
   it('al quedar pagada ofrece ver el menú y la cuenta con los puntos', async () => {
     const m = montar({ estados: [{ estado: 'pagada', total_cop: 17800 }] });
     m.pagar.iniciar();

@@ -674,6 +674,38 @@ describe('venta visible en el iPad y modificable', () => {
     expect($('[data-accion="nueva-venta"]')).not.toBeNull();
   });
 
+  it('el número de la venta se ve en el POS, y si el cliente sin cuenta pagó con Bold se le ofrece el QR de puntos', async () => {
+    const api = crearFakeApi();
+    const m = await entrarComoPersonal(api);
+    await click('[data-accion="venta-sin-cliente-espera"]');
+    await click('[data-producto="espresso"]');
+    await click('[data-accion="confirmar-pedido"]');
+    const v = [...api._s.ventas.values()][0];
+    expect(texto('[data-campo="numero-venta"]')).toBe('Venta #' + v.numero);
+    v.estado = 'pagada'; v.medio_pago = 'bold_online';
+    await m.pos.vistas.venta.revisarPago();
+    await esperar();
+    expect(texto('.listo [data-campo="numero-venta"]')).toBe('Venta #' + v.numero);
+    expect($('[data-campo="qr-puntos"] svg')).not.toBeNull();
+  });
+
+  it('en Caja, una venta recién pagada sin cliente tiene "QR de puntos"; una con cliente o antigua no', async () => {
+    const ahora = new Date().toISOString();
+    const vieja = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+    const api = crearFakeApi({ ventasDia: [
+      { id: 'v-1', numero: 7, estado: 'pagada', canal: 'tienda', medio_pago: 'efectivo', total_cop: 2500, cliente: null, pagada_en: ahora },
+      { id: 'v-2', numero: 8, estado: 'pagada', canal: 'tienda', medio_pago: 'efectivo', total_cop: 2500, cliente: 'María P.', pagada_en: ahora },
+      { id: 'v-3', numero: 9, estado: 'pagada', canal: 'tienda', medio_pago: 'efectivo', total_cop: 2500, cliente: null, pagada_en: vieja },
+    ] });
+    api._s.ventas.set('v-1', { id: 'v-1', numero: 7, estado: 'pagada', cliente_id: null, codigo_pago: 'e'.repeat(32), venta_lineas: [] });
+    await entrarComoPersonal(api);
+    await click('[data-pestana="caja"]');
+    expect($$('[data-accion="qr-puntos"]').length).toBe(1);
+    await click('[data-venta="v-1"] [data-accion="qr-puntos"]');
+    expect($('[data-campo="qr-puntos"] svg')).not.toBeNull();
+    expect(document.body.textContent).toContain('Puntos de la venta #7');
+  });
+
   it('si el cliente paga con Bold justo cuando el vendedor registra el cobro, no sale un error: se muestra que ya está pagada', async () => {
     const api = crearFakeApi();
     await entrarComoPersonal(api);

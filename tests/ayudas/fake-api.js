@@ -123,7 +123,7 @@ export function crearFakeApi(opciones) {
       red();
       for (const v of s.ventas.values()) if (v.idempotency_key === idem) return v.id;
       const id = 'v-' + (++s.seq);
-      s.ventas.set(id, { id, idempotency_key: idem, estado: 'alistando', cliente_id: cliente || null, venta_lineas: [], voucher_compra_id: null, compra_pct: 0, subtotal_cop: 0, descuento_cop: 0, total_cop: 0 });
+      s.ventas.set(id, { id, numero: 100 + s.seq, codigo_pago: String(s.seq).padStart(32, 'a'), idempotency_key: idem, estado: 'alistando', cliente_id: cliente || null, venta_lineas: [], voucher_compra_id: null, compra_pct: 0, subtotal_cop: 0, descuento_cop: 0, total_cop: 0 });
       reg('crearVenta', { idem, cliente });
       return id;
     },
